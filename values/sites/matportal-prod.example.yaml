@@ -1,0 +1,62 @@
+# Example MatPortal production overlay template.
+# Copy to a private/site repository or values/sites/<site>.yaml and adjust.
+# Do not commit real secrets, kubeconfigs, tfvars, or Terraform state.
+
+global:
+  namespace: matportal
+  createNamespace: false
+  storageClassName: replace-with-production-storage-class
+  ingressClassName: traefik
+
+secrets:
+  create: false
+  existingSecret: matportal-secrets
+
+images:
+  api:
+    tag: replace-with-immutable-tag-or-digest
+  cron:
+    tag: replace-with-immutable-tag-or-digest
+  ui:
+    tag: replace-with-immutable-tag-or-digest
+  assistant:
+    tag: replace-with-immutable-tag-or-digest
+
+api:
+  publicUrl: https://data.matportal.org
+  restUrlPrefix: https://data.matportal.org
+
+ui:
+  uiUrl: https://matportal.org
+  publicApiUrl: https://data.matportal.org
+  supportEmail: support@example.org
+  forceSsl: "true"
+
+ingress:
+  enabled: true
+  hosts:
+    ui: matportal.org
+    api: data.matportal.org
+  tls:
+    enabled: true
+    secretName: matportal-tls
+
+persistence:
+  shared:
+    storageClassName: replace-with-rwx-storage-class-if-scaling
+    accessModes: ["ReadWriteOnce"]
+    size: 500Gi
+  solr:
+    size: 100Gi
+  store:
+    size: 500Gi
+  mysql:
+    size: 100Gi
+
+monitoring:
+  serviceMonitor:
+    # Enable only after the Prometheus Operator ServiceMonitor CRD exists.
+    enabled: false
+
+networkPolicy:
+  enabled: true

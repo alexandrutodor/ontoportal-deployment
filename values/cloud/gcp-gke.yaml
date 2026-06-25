@@ -1,0 +1,38 @@
+# Google Kubernetes Engine target overlay.
+# The built-in GKE Ingress controller is selected by annotation rather than
+# spec.ingressClassName, so this overlay disables the ingressClassName field.
+deploymentTarget:
+  provider: gcp-gke
+  runtime: kubernetes
+
+global:
+  storageClassName: standard-rwo
+  ingressClassName: ""
+
+ingress:
+  enabled: true
+  className: ""
+  useClassNameField: false
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.allow-http: "false"
+  tls:
+    enabled: true
+
+persistence:
+  shared:
+    storageClassName: standard-rwo
+    accessModes: ["ReadWriteOnce"]
+  solr:
+    storageClassName: standard-rwo
+  redis:
+    storageClassName: standard-rwo
+  store:
+    storageClassName: standard-rwo
+  mysql:
+    storageClassName: standard-rwo
+  matomo:
+    app:
+      storageClassName: standard-rwo
+    db:
+      storageClassName: standard-rwo

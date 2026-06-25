@@ -1,0 +1,56 @@
+{{- if .Values.ontopanel.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-ontopanel
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: ontopanel
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.ontopanel.service.port }}
+      targetPort: http
+  selector:
+    app.kubernetes.io/component: ontopanel
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-ontopanel
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: ontopanel
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ontopanel
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ontopanel
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list .Values.ontopanel .) | nindent 6 }}
+      containers:
+        - name: ontopanel
+          image: {{ include "ontoportal.image" .Values.images.ontopanel | quote }}
+          imagePullPolicy: {{ .Values.images.ontopanel.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ontopanel.service.port }}
+          {{- with .Values.ontopanel.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

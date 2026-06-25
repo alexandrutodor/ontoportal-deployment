@@ -1,0 +1,172 @@
+{{- if .Values.solr.enabled }}
+{{- $root := . -}}
+{{- $ns := include "ontoportal.namespace" . -}}
+{{- $items := list (dict "suffix" "solr" "core" "" "configPath" "") -}}
+{{- if eq (.Values.solr.mode | default "single") "split" -}}
+{{- $items = list (dict "suffix" "solr-term" "core" .Values.solr.termCore "configPath" .Values.solr.configsets.termPath) (dict "suffix" "solr-prop" "core" .Values.solr.propCore "configPath" .Values.solr.configsets.propPath) -}}
+{{- end -}}
+{{- range $i, $item := $items }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $item.suffix }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: {{ $item.suffix | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  ports:
+    - name: solr
+      port: {{ $root.Values.solr.port }}
+      targetPort: solr
+  selector:
+    app.kubernetes.io/component: {{ $item.suffix | quote }}
+    {{- include "ontoportal.selectorLabels" $root | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $item.suffix }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: {{ $item.suffix | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $item.suffix | quote }}
+      {{- include "ontoportal.selectorLabels" $root | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ $item.suffix | quote }}
+        {{- include "ontoportal.selectorLabels" $root | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" $root }}
+      {{- include "ontoportal.podSecurityContext" $root | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list $root.Values.solr $root) | nindent 6 }}
+      {{- if and (not $root.Values.solr.configsets.existingConfigMap) (not $root.Values.solr.configsets.existingClaim) }}
+      initContainers:
+        - name: solr-configsets
+          image: {{ include "ontoportal.image" $root.Values.images.cron | quote }}
+          imagePullPolicy: {{ $root.Values.images.cron.pullPolicy }}
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              gem_dir=$(ruby -e 'require "bundler/setup"; print Gem::Specification.find_by_name("ontologies_linked_data").full_gem_path' 2>/dev/null || true)
+              src="${gem_dir}/config/solr"
+              default_conf="${gem_dir}/test/solr/configsets/_default/conf"
+              if [ ! -d "${src}" ] || [ ! -d "${default_conf}" ]; then
+                echo "ERROR: ontologies_linked_data Solr configsets not found" >&2
+                exit 1
+              fi
+              mkdir -p {{ $root.Values.solr.configsets.mountPath | quote }}
+              rm -rf {{ printf "%s/term_search" $root.Values.solr.configsets.mountPath | quote }} {{ printf "%s/property_search" $root.Values.solr.configsets.mountPath | quote }}
+              mkdir -p {{ printf "%s/term_search/conf" $root.Values.solr.configsets.mountPath | quote }} {{ printf "%s/property_search/conf" $root.Values.solr.configsets.mountPath | quote }}
+              cp -a "${default_conf}/." {{ printf "%s/term_search/conf/" $root.Values.solr.configsets.mountPath | quote }}
+              cp -a "${default_conf}/." {{ printf "%s/property_search/conf/" $root.Values.solr.configsets.mountPath | quote }}
+              cp -a "${src}/term_search/." {{ printf "%s/term_search/conf/" $root.Values.solr.configsets.mountPath | quote }}
+              cp -a "${src}/property_search/." {{ printf "%s/property_search/conf/" $root.Values.solr.configsets.mountPath | quote }}
+          volumeMounts:
+            - name: solr-configsets
+              mountPath: {{ $root.Values.solr.configsets.mountPath | quote }}
+      {{- end }}
+      containers:
+        - name: solr
+          image: {{ include "ontoportal.image" $root.Values.images.solr | quote }}
+          imagePullPolicy: {{ $root.Values.images.solr.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" $root | nindent 10 }}
+          ports:
+            - name: solr
+              containerPort: {{ $root.Values.solr.port }}
+          command:
+            - bash
+            - -lc
+            - |
+              set -euo pipefail
+              mkdir -p /var/solr/data
+              {{- if $item.core }}
+              if [ -d {{ $item.configPath | quote }} ]; then
+                exec solr-precreate {{ $item.core | quote }} {{ $item.configPath | quote }}
+              else
+                echo "WARN: Solr configset {{ $item.configPath }} not mounted; using Solr default config for {{ $item.core }}" >&2
+                exec solr-precreate {{ $item.core | quote }}
+              fi
+              {{- else }}
+              solr start -p {{ $root.Values.solr.port }}
+              for core_cfg in \
+                {{ $root.Values.solr.termCore | quote }}:{{ $root.Values.solr.configsets.termPath | quote }} \
+                {{ $root.Values.solr.propCore | quote }}:{{ $root.Values.solr.configsets.propPath | quote }}; do
+                core="${core_cfg%%:*}"
+                cfg="${core_cfg#*:}"
+                if [ -d "${cfg}" ]; then
+                  solr create_core -c "${core}" -d "${cfg}" || true
+                else
+                  echo "WARN: Solr configset ${cfg} not mounted; using Solr default config for ${core}" >&2
+                  solr create_core -c "${core}" || true
+                fi
+              done
+              solr stop -p {{ $root.Values.solr.port }}
+              exec solr start -f -p {{ $root.Values.solr.port }}
+              {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /solr/admin/info/system?wt=json
+              port: solr
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /solr/admin/info/system?wt=json
+              port: solr
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- with $root.Values.solr.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: solr-data
+              mountPath: /var/solr
+              {{- if eq ($root.Values.solr.mode | default "single") "split" }}
+              subPath: {{ $item.suffix }}
+              {{- end }}
+            {{- if $root.Values.solr.configsets.existingClaim }}
+            - name: solr-configsets-pvc
+              mountPath: {{ $root.Values.solr.configsets.mountPath | quote }}
+              readOnly: true
+            {{- else }}
+            - name: solr-configsets
+              mountPath: {{ $root.Values.solr.configsets.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: solr-data
+          {{- include "ontoportal.volumeDataSource" (list $root $root.Values.persistence.solr.existingClaim (ternary (printf "%s-%s-data" (include "ontoportal.fullname" $root) $item.suffix) (printf "%s-solr-data" (include "ontoportal.fullname" $root)) (eq ($root.Values.solr.mode | default "single") "split"))) | nindent 10 }}
+        {{- if $root.Values.solr.configsets.existingClaim }}
+        - name: solr-configsets-pvc
+          persistentVolumeClaim:
+            claimName: {{ $root.Values.solr.configsets.existingClaim | quote }}
+        {{- else if $root.Values.solr.configsets.existingConfigMap }}
+        - name: solr-configsets
+          configMap:
+            name: {{ $root.Values.solr.configsets.existingConfigMap | quote }}
+        {{- else }}
+        - name: solr-configsets
+          emptyDir: {}
+        {{- end }}
+{{- if lt (add1 $i) (len $items) }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,49 @@
+# Values for the upstream kedacore/keda Helm chart.
+# Install this chart before enabling autoscaling.*.mode=keda in the OntoPortal chart.
+crds:
+  install: true
+
+operator:
+  replicaCount: 1
+
+metricsServer:
+  enabled: true
+  replicaCount: 1
+
+webhooks:
+  enabled: true
+  replicaCount: 1
+
+resources:
+  operator:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  metricServer:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  webhooks:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+prometheus:
+  operator:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+  metricServer:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+  webhooks:
+    enabled: true
+    serviceMonitor:
+      enabled: false

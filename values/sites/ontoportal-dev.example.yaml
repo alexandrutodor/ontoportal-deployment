@@ -1,0 +1,35 @@
+# Example site overlay for a non-production k3s OntoPortal install.
+# Copy to values/sites/<site>.yaml and adjust; do not put secrets in this file.
+
+global:
+  namespace: ontoportal
+  createNamespace: false
+  storageClassName: local-path
+  ingressClassName: traefik
+
+secrets:
+  create: false
+  existingSecret: ontoportal-secrets
+
+api:
+  publicUrl: https://api.ontoportal.example.org
+  restUrlPrefix: https://api.ontoportal.example.org
+
+ui:
+  uiUrl: https://ontoportal.example.org
+  publicApiUrl: https://api.ontoportal.example.org
+  supportEmail: support@example.org
+
+ingress:
+  enabled: true
+  hosts:
+    ui: ontoportal.example.org
+    api: api.ontoportal.example.org
+  tls:
+    enabled: true
+    secretName: ontoportal-tls
+
+monitoring:
+  serviceMonitor:
+    # Enable only after the Prometheus Operator ServiceMonitor CRD exists.
+    enabled: false

@@ -1,0 +1,34 @@
+global:
+  createNamespace: true
+  storageClassName: local-path
+  ingressClassName: traefik
+
+ingress:
+  enabled: true
+  className: traefik
+  tls:
+    enabled: false
+  hosts:
+    ui: localhost
+    api: ""
+  paths:
+    ui: /
+    api: /api
+
+api:
+  publicUrl: http://localhost:8085/api
+  restUrlPrefix: http://localhost:8085/api
+ui:
+  uiUrl: http://localhost:8085
+  publicApiUrl: http://localhost:8085/api
+  forceSsl: "false"
+
+persistence:
+  shared:
+    size: 30Gi
+  solr:
+    size: 10Gi
+  store:
+    size: 40Gi
+  mysql:
+    size: 10Gi

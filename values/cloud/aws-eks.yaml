@@ -1,0 +1,41 @@
+# AWS EKS target overlay.
+# Assumes the cluster already has the AWS Load Balancer Controller and CSI drivers
+# required by the selected StorageClasses. Use a site overlay to add hosts, TLS
+# certificate ARNs, private/internal schemes, IRSA annotations, or EFS RWX storage.
+deploymentTarget:
+  provider: aws-eks
+  runtime: kubernetes
+
+global:
+  storageClassName: gp3
+  ingressClassName: alb
+
+ingress:
+  enabled: true
+  className: alb
+  useClassNameField: true
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+  tls:
+    enabled: true
+
+persistence:
+  shared:
+    storageClassName: gp3
+    accessModes: ["ReadWriteOnce"]
+  solr:
+    storageClassName: gp3
+  redis:
+    storageClassName: gp3
+  store:
+    storageClassName: gp3
+  mysql:
+    storageClassName: gp3
+  matomo:
+    app:
+      storageClassName: gp3
+    db:
+      storageClassName: gp3

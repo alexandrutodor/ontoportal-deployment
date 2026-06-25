@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+  - package-ecosystem: terraform
+    directory: /terraform
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      terraform-providers:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: hashicorp/helm
+        update-types:
+          - version-update:semver-major
+      - dependency-name: hashicorp/kubernetes
+        update-types:
+          - version-update:semver-major
+  - package-ecosystem: docker
+    directory: /images/_example
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2

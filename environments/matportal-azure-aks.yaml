@@ -1,0 +1,25 @@
+apiVersion: deployment.ontoportal.org/v1alpha1
+kind: Environment
+metadata:
+  name: matportal-azure-aks
+spec:
+  profile: matportal
+  distribution: matportal
+  runtime: kubernetes
+  provider: azure-aks
+  valuesFiles:
+    - values/profiles/matportal.yaml
+    - values/profiles/production-recommended.yaml
+    - values/cloud/azure-aks.yaml
+    - values/addons/matomo.yaml
+    - values/addons/fairness.yaml
+  terraform:
+    enabled: true
+    namespace: matportal
+    release_name: matportal
+    create_namespace: true
+    enable_cert_manager: true
+    enable_external_secrets: true
+    enable_monitoring: true
+    enable_keda: false
+    enable_vpa: false

@@ -1,0 +1,7 @@
+community:
+  enabled: true
+persistence:
+  enabled: true
+postgresql:
+  enabled: true
+monitoringPasscodeSecretName: sonarqube-monitoring-passcode

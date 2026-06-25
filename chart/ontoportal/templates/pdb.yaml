@@ -1,0 +1,27 @@
+{{- $root := . -}}
+{{- $components := dict "api" .Values.api "ui" .Values.ui "fairness" .Values.fairness "assistant" .Values.assistant "matomo" .Values.matomo -}}
+{{- range $name, $component := $components }}
+{{- $pdb := index $root.Values.podDisruptionBudgets $name | default dict -}}
+{{- if and $component.enabled $pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  namespace: {{ include "ontoportal.namespace" $root }}
+  labels:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  {{- if hasKey $pdb "maxUnavailable" }}
+  maxUnavailable: {{ $pdb.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ $pdb.minAvailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $name | quote }}
+      {{- include "ontoportal.selectorLabels" $root | nindent 6 }}
+---
+{{- end }}
+{{- end }}

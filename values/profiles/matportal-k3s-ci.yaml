@@ -1,0 +1,72 @@
+# CI-only MatPortal overlay for disposable k3s smoke tests.
+#
+# The production MatPortal profile points at MatPortal-specific images, some of
+# which may be private or environment-specific. This overlay keeps MatPortal
+# values and add-ons rendered while swapping to public smoke-compatible runtime
+# images so GitHub-hosted CI can validate the chart wiring without credentials.
+# It does not prove MatPortal's private UI image or FAIRness business logic.
+
+images:
+  api:
+    repository: bioportal/ontologies_api
+    tag: latest
+  cron:
+    repository: bioportal/ncbo_cron
+    tag: v6.7.1
+  ui:
+    repository: agroportal/ontoportal_web_ui
+    tag: development
+  mgrep:
+    repository: ontoportal/mgrep
+    tag: "0.0.2"
+  fairness:
+    repository: nginxinc/nginx-unprivileged
+    tag: "1.27-alpine"
+
+api:
+  publicUrl: http://ontoportal-api:9393
+  restUrlPrefix: http://ontoportal-api:9393
+
+ui:
+  uiTheme: ontoportal
+  uiUrl: http://127.0.0.1:13000
+  publicApiUrl: http://127.0.0.1:19393
+  useLegacyBiomixer: "true"
+  extraStartupScript: |-
+    UI_CONFIG="config/bioportal_config_${RAILS_ENV:-production}.rb"
+    cp config/bioportal_config_env.rb.sample "${UI_CONFIG}"
+    printf '\n$REST_URL = ENV.fetch(%%q[API_URL])\n' >> "${UI_CONFIG}"
+    printf '$PUBLIC_REST_URL = ENV[%%q[PUBLIC_API_URL]].to_s.empty? ? $REST_URL : ENV[%%q[PUBLIC_API_URL]]\n' >> "${UI_CONFIG}"
+    cat > config/initializers/ontologies_controller_patch.rb <<'RUBY'
+    # k3s CI image hotfix: tolerate sparse smoke-test submission metadata.
+    Rails.application.config.to_prepare do
+      OntologiesController.class_eval do
+        def properties_hash_values(properties, sub: @submission_latest, custom_labels: {})
+          return {} if sub.nil?
+          labels = custom_labels || {}
+          Array(properties).each_with_object({}) do |x, h|
+            name = x.to_s
+            value = begin
+              sub.public_send(name)
+            rescue StandardError
+              nil
+            end
+            h[name] = [value, labels[x.to_sym]]
+          end
+        end
+      end
+    end
+    RUBY
+
+mgrep:
+  service:
+    port: 55556
+  containerPort: 55556
+  command: >-
+    mkdir -p /data/mgrep;
+    [ -s /data/mgrep/dictionary.txt ] || printf '0\tDUMMY\n' > /data/mgrep/dictionary.txt;
+    mgrep --port 55556 -f /data/mgrep/dictionary.txt -w /srv/mgrep/word_divider.txt -c /srv/mgrep/CaseFolding.txt && tail -f /dev/null
+
+patches:
+  matportalApiParentNormalization:
+    enabled: false

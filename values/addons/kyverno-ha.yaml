@@ -1,0 +1,25 @@
+admissionController:
+  replicas: 3
+backgroundController:
+  replicas: 2
+cleanupController:
+  replicas: 2
+reportsController:
+  replicas: 2
+reportsServer:
+  enabled: true
+config:
+  webhooks:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kyverno
+            - cert-manager
+            - external-secrets
+            - monitoring
+            - observability
+            - trivy-system
+            - wazuh

@@ -1,0 +1,172 @@
+name: build-source-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Optional environment recipe, for example environments/bioportal-compose-source.yaml"
+        required: false
+        type: string
+      values_files:
+        description: "Optional newline- or comma-separated image-build values files. Ignored when environment is set unless extra files are desired."
+        required: false
+        default: "values/image-builds/ontoportal-source.yaml"
+        type: string
+      platforms:
+        description: "Override platforms for all images. Empty uses values defaults."
+        required: false
+        default: ""
+        type: string
+      push:
+        description: "Push built images. Leave false for compile/scan-only runs."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-source-images-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      has_images: ${{ steps.matrix.outputs.has_images }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: matrix
+        name: Create image build matrix
+        env:
+          ENVIRONMENT_RECIPE: ${{ inputs.environment }}
+          VALUES_FILES: ${{ inputs.values_files }}
+          PLATFORMS: ${{ inputs.platforms }}
+          PUSH: ${{ inputs.push }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${ENVIRONMENT_RECIPE}" ]; then
+            args+=(--environment "${ENVIRONMENT_RECIPE}")
+          fi
+          python3 - <<'PY' > /tmp/value_args.txt
+          import os
+          default_values = "values/image-builds/ontoportal-source.yaml"
+          raw = os.environ.get("VALUES_FILES", "")
+          if os.environ.get("ENVIRONMENT_RECIPE", "").strip() and raw.strip() == default_values:
+              raw = ""
+          for part in raw.replace(",", "\n").splitlines():
+              value = part.strip()
+              if value:
+                  print(value)
+          PY
+          while IFS= read -r vf; do
+            args+=(-f "$vf")
+          done < /tmp/value_args.txt
+          if [ -n "${PLATFORMS}" ]; then
+            args+=(--platforms "${PLATFORMS}")
+          fi
+          if [ "${PUSH}" = "true" ]; then
+            args+=(--force-push true)
+          else
+            args+=(--force-push false)
+          fi
+          args+=(--github-output)
+          python3 scripts/image-build-matrix.py "${args[@]}"
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.has_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    env:
+      PUBLISH: ${{ inputs.push && matrix.push }}
+      LOCAL_SCAN_TAG: local-scan:${{ github.sha }}-${{ github.run_attempt }}-${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch Git image source
+        if: matrix.source_type == 'git'
+        env:
+          SOURCE_GIT_TOKEN: ${{ secrets.SOURCE_GIT_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch-image-source.py \
+            --url "${{ matrix.git_url }}" \
+            --ref "${{ matrix.git_ref }}" \
+            --dest ".image-build-src/${{ matrix.name }}"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Verify Docker Hub credentials
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'docker.io/')
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "${DOCKERHUB_USERNAME}" || { echo "DOCKERHUB_USERNAME secret is required" >&2; exit 1; }
+          test -n "${DOCKERHUB_TOKEN}" || { echo "DOCKERHUB_TOKEN secret is required" >&2; exit 1; }
+      - name: Login to GitHub Container Registry
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'ghcr.io/')
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Docker Hub
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'docker.io/')
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ matrix.image }}
+          tags: ${{ matrix.tags }}
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ matrix.context }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Build local amd64 image for Trivy scan
+        if: contains(matrix.platforms, 'linux/amd64')
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.LOCAL_SCAN_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy image scan
+        if: contains(matrix.platforms, 'linux/amd64')
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.LOCAL_SCAN_TAG }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+      - name: Build and optionally push image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true

@@ -1,0 +1,111 @@
+name: k3s-smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k3s-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-ontoportal:
+    name: clean OntoPortal k3s smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install Python dependencies
+        run: pip install pyyaml
+      - name: Install Playwright dependencies
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+      - name: Install local k3s test runner
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.8.3 bash
+          k3d version
+          kubectl version --client=true
+          helm version
+      - name: Create disposable k3s cluster
+        run: |
+          k3d cluster create ontoportal-live \
+            --agents 0 \
+            --timeout 300s \
+            --wait \
+            --k3s-arg '--kubelet-arg=feature-gates=KubeletInUserNamespace=true@server:*'
+          kubectl get nodes -o wide
+          kubectl get storageclass
+      - name: Create namespace and existing Secret
+        run: |
+          kubectl create namespace ontoportal
+          kubectl -n ontoportal create secret generic ontoportal-secrets \
+            --from-literal=apiKey="$(openssl rand -base64 36)" \
+            --from-literal=adminPassword="$(openssl rand -base64 24)" \
+            --from-literal=mysqlRootPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDbaPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDavPassword="$(openssl rand -base64 24)"
+      - name: Install clean OntoPortal
+        run: |
+          helm upgrade --install ontoportal chart/ontoportal \
+            --namespace ontoportal \
+            -f values/profiles/ontoportal-clean.yaml \
+            -f values/profiles/k3s-local.yaml \
+            -f values/profiles/k3s-ci.yaml \
+            --set global.createNamespace=false \
+            --set secrets.create=false \
+            --set secrets.existingSecret=ontoportal-secrets \
+            --timeout 20m
+      - name: Wait for rollout
+        run: |
+          for deploy in $(kubectl -n ontoportal get deploy -o name); do
+            kubectl -n ontoportal rollout status "$deploy" --timeout=15m
+          done
+          kubectl -n ontoportal get pods,pvc,svc -o wide
+      - name: Run deep smoke test
+        env:
+          SMOKE_DEEP: "true"
+          FAIL_ON_RESTARTS: "true"
+          MAX_RESTARTS: "3"
+          ROLLOUT_TIMEOUT: "10m"
+        run: ./scripts/smoke.sh ontoportal ontoportal
+      - name: Run browser UI smoke tests
+        run: ./scripts/ui-e2e.sh ontoportal ontoportal
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n ontoportal get all,pvc,ingress -o wide || true
+          kubectl -n ontoportal get events --sort-by=.lastTimestamp | tail -100 || true
+          kubectl -n ontoportal describe pods || true
+          for component in api ui cron store solr-term solr-prop redis-persistent mgrep mysql cache; do
+            echo "===== logs: ${component} ====="
+            kubectl -n ontoportal logs deploy/ontoportal-${component} --all-containers --tail=200 || true
+          done
+          docker ps -a || true
+          docker logs k3d-ontoportal-live-server-0 --tail=200 || true
+          cat /tmp/ontoportal-ui-port-forward.log 2>/dev/null || true
+          cat /tmp/ontoportal-api-port-forward.log 2>/dev/null || true
+      - name: Delete disposable k3s cluster
+        if: always()
+        run: k3d cluster delete ontoportal-live || true

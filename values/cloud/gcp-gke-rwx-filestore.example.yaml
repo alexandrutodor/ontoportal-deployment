@@ -1,0 +1,7 @@
+# Optional GKE Filestore example for API/UI horizontal scaling.
+# Apply only after enabling/testing the managed Filestore CSI driver and creating
+# an RWX StorageClass appropriate for your GKE mode and region.
+persistence:
+  shared:
+    storageClassName: standard-rwx
+    accessModes: ["ReadWriteMany"]

@@ -1,0 +1,65 @@
+{{- $root := . -}}
+{{- $components := dict "api" .Values.api "ui" .Values.ui "fairness" .Values.fairness "assistant" .Values.assistant -}}
+{{- range $name, $component := $components }}
+{{- $hpa := index $root.Values.autoscaling $name | default dict -}}
+{{- $mode := default "hpa" $hpa.mode -}}
+{{- if and $component.enabled $hpa.enabled (not (or (eq $mode "hpa") (eq $mode "keda"))) }}
+{{- fail (printf "autoscaling.%s.mode must be hpa or keda" $name) }}
+{{- end }}
+{{- if and $component.enabled $hpa.enabled (eq $mode "hpa") }}
+{{- if not (or $hpa.targetCPUUtilizationPercentage $hpa.targetMemoryUtilizationPercentage) }}
+{{- fail (printf "autoscaling.%s.enabled=true with mode=hpa requires targetCPUUtilizationPercentage or targetMemoryUtilizationPercentage" $name) }}
+{{- end }}
+{{- $resources := $component.resources | default dict -}}
+{{- $requests := $resources.requests | default dict -}}
+{{- if and $hpa.targetCPUUtilizationPercentage (not $requests.cpu) }}
+{{- fail (printf "autoscaling.%s targetCPUUtilizationPercentage requires %s.resources.requests.cpu" $name $name) }}
+{{- end }}
+{{- if and $hpa.targetMemoryUtilizationPercentage (not $requests.memory) }}
+{{- fail (printf "autoscaling.%s targetMemoryUtilizationPercentage requires %s.resources.requests.memory" $name $name) }}
+{{- end }}
+{{- $minReplicas := int ($hpa.minReplicas | default 1) -}}
+{{- $maxReplicas := int ($hpa.maxReplicas | default 3) -}}
+{{- if gt $minReplicas $maxReplicas }}
+{{- fail (printf "autoscaling.%s minReplicas cannot be greater than maxReplicas" $name) }}
+{{- end }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  namespace: {{ include "ontoportal.namespace" $root }}
+  labels:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  minReplicas: {{ $minReplicas }}
+  maxReplicas: {{ $maxReplicas }}
+  metrics:
+    {{- if $hpa.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $hpa.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if $hpa.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $hpa.targetMemoryUtilizationPercentage }}
+    {{- end }}
+  {{- with $hpa.behavior }}
+  behavior:
+{{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}

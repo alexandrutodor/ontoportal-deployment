@@ -1,0 +1,18 @@
+apiVersion: deployment.ontoportal.org/v1alpha1
+kind: Environment
+metadata:
+  name: bioportal-compose-source
+spec:
+  profile: ontoportal-clean
+  distribution: bioportal
+  runtime: compose
+  provider: generic
+  valuesFiles:
+    - values/profiles/ontoportal-clean.yaml
+    - values/profiles/docker-compose.yaml
+  imageBuildValuesFiles:
+    - values/image-builds/bioportal-source.yaml
+  images:
+    tag: replace-with-built-tag
+  compose:
+    enabled: true

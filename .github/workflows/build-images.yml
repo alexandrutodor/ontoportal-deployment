@@ -1,0 +1,263 @@
+name: build-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Target image, for example ghcr.io/matportal/my-helper or docker.io/matportal/my-helper. If empty, build enabled images/*/image.json configs."
+        required: false
+        type: string
+      context:
+        description: "Build context for manual builds."
+        required: false
+        default: "."
+        type: string
+      dockerfile:
+        description: "Dockerfile path for manual builds."
+        required: false
+        default: "Dockerfile"
+        type: string
+      platforms:
+        description: "Comma-separated platforms."
+        required: false
+        default: "linux/amd64,linux/arm64"
+        type: string
+      push:
+        description: "Push image after build. Defaults to false for safer manual runs."
+        required: false
+        default: false
+        type: boolean
+      tags:
+        description: "docker/metadata-action tag rules. Leave empty for branch/tag/sha defaults."
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - "images/**"
+      - ".dockerignore"
+      - ".github/workflows/build-images.yml"
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+    paths:
+      - "images/**"
+      - ".dockerignore"
+      - ".github/workflows/build-images.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      has_images: ${{ steps.discover.outputs.has_images }}
+      matrix: ${{ steps.discover.outputs.matrix }}
+    env:
+      INPUT_IMAGE: ${{ inputs.image }}
+      INPUT_CONTEXT: ${{ inputs.context }}
+      INPUT_DOCKERFILE: ${{ inputs.dockerfile }}
+      INPUT_PLATFORMS: ${{ inputs.platforms }}
+      INPUT_PUSH: ${{ inputs.push }}
+      INPUT_TAGS: ${{ inputs.tags }}
+      EVENT_NAME: ${{ github.event_name }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: discover
+        name: Discover image build definitions
+        run: |
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import pathlib
+
+          root = pathlib.Path.cwd().resolve()
+          default_tags = "type=ref,event=branch\ntype=ref,event=tag\ntype=sha,prefix=sha-"
+          allowed_image_prefixes = ("ghcr.io/matportal/", "docker.io/matportal/")
+
+          def as_bool(value: str | None, default: bool) -> bool:
+              if value is None or value == "":
+                  return default
+              return value.lower() in {"1", "true", "yes", "on"}
+
+          def resolve_repo_path(value: str, field: str) -> str:
+              path = (root / value).resolve()
+              try:
+                  path.relative_to(root)
+              except ValueError as exc:
+                  raise SystemExit(f"{field} must stay inside the repository: {value}") from exc
+              return str(path.relative_to(root))
+
+          def config_bool(config: dict, field: str, default: bool, source: pathlib.Path) -> bool:
+              value = config.get(field, default)
+              if isinstance(value, bool):
+                  return value
+              raise SystemExit(f"{source}: {field} must be a JSON boolean")
+
+          def validate_item_paths(source: pathlib.Path, image: str, context: str, dockerfile: str, push: bool) -> None:
+              if not image.startswith(allowed_image_prefixes):
+                  allowed = ", ".join(allowed_image_prefixes)
+                  raise SystemExit(f"{source}: image must start with one of: {allowed}")
+              context_path = (root / context).resolve()
+              dockerfile_path = (root / dockerfile).resolve()
+              if not dockerfile_path.is_file():
+                  raise SystemExit(f"{source}: dockerfile does not exist: {dockerfile}")
+              try:
+                  dockerfile_path.relative_to(context_path)
+              except ValueError as exc:
+                  raise SystemExit(f"{source}: dockerfile must be inside context: {dockerfile} not under {context}") from exc
+              if push and context_path == root:
+                  raise SystemExit(f"{source}: publishing from repository root is not allowed; use a narrower image context")
+
+          def item_from_config(config: dict, source: pathlib.Path, manual: bool = False) -> dict | None:
+              if not manual and not config_bool(config, "enabled", False, source):
+                  return None
+              image = str(config.get("image", "")).strip()
+              if not image:
+                  raise SystemExit(f"{source}: image is required")
+              context = resolve_repo_path(str(config.get("context") or source.parent.relative_to(root)), "context")
+              dockerfile = resolve_repo_path(str(config.get("dockerfile") or pathlib.Path(context) / "Dockerfile"), "dockerfile")
+              platforms = str(config.get("platforms") or "linux/amd64,linux/arm64").strip()
+              tags = str(config.get("tags") or default_tags).strip()
+              push = config_bool(config, "push", True, source)
+              if os.environ.get("EVENT_NAME") == "pull_request":
+                  push = False
+              validate_item_paths(source, image, context, dockerfile, push)
+              return {
+                  "image": image,
+                  "context": context,
+                  "dockerfile": dockerfile,
+                  "platforms": platforms,
+                  "tags": tags,
+                  "push": push,
+              }
+
+          include: list[dict] = []
+          manual_image = os.environ.get("INPUT_IMAGE", "").strip()
+          if manual_image:
+              include.append(item_from_config({
+                  "enabled": True,
+                  "image": manual_image,
+                  "context": os.environ.get("INPUT_CONTEXT") or ".",
+                  "dockerfile": os.environ.get("INPUT_DOCKERFILE") or "Dockerfile",
+                  "platforms": os.environ.get("INPUT_PLATFORMS") or "linux/amd64,linux/arm64",
+                  "tags": os.environ.get("INPUT_TAGS") or default_tags,
+                  "push": as_bool(os.environ.get("INPUT_PUSH"), False),
+              }, root / "workflow_dispatch", manual=True))
+          else:
+              for path in sorted(root.glob("images/*/image.json")):
+                  with path.open("r", encoding="utf-8") as fh:
+                      config = json.load(fh)
+                  item = item_from_config(config, path)
+                  if item:
+                      include.append(item)
+
+          output = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as fh:
+              fh.write(f"has_images={'true' if include else 'false'}\n")
+              fh.write("matrix<<JSON\n")
+              fh.write(json.dumps({"include": include}, sort_keys=True))
+              fh.write("\nJSON\n")
+
+          if include:
+              print(f"Discovered {len(include)} image build(s):")
+              for item in include:
+                  print(f"- {item['image']} from {item['dockerfile']} ({item['platforms']}, push={item['push']})")
+          else:
+              print("No enabled image build definitions found. Nothing to build.")
+          PY
+
+  build:
+    needs: discover
+    if: needs.discover.outputs.has_images == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' && matrix.push }}
+      LOCAL_SCAN_TAG: local-scan:${{ github.sha }}-${{ github.run_attempt }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Verify Docker Hub credentials
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'docker.io/')
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "${DOCKERHUB_USERNAME}" || { echo "DOCKERHUB_USERNAME secret is required" >&2; exit 1; }
+          test -n "${DOCKERHUB_TOKEN}" || { echo "DOCKERHUB_TOKEN secret is required" >&2; exit 1; }
+      - name: Login to GitHub Container Registry
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'ghcr.io/')
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Docker Hub
+        if: env.PUBLISH == 'true' && startsWith(matrix.image, 'docker.io/')
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ matrix.image }}
+          tags: ${{ matrix.tags }}
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ matrix.context }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - name: Build local amd64 image for Trivy scan
+        if: contains(matrix.platforms, 'linux/amd64')
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.LOCAL_SCAN_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy image scan
+        if: contains(matrix.platforms, 'linux/amd64')
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.LOCAL_SCAN_TAG }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+      - name: Build and optionally push multi-platform image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,48 @@
+# Build NCBO/BioPortal-flavoured images from NCBO public repositories.
+deploymentTarget:
+  distribution: bioportal
+  imageMode: build
+
+imageBuilds:
+  enabled: true
+  defaults:
+    registry: ghcr.io/ncbo
+    platforms: linux/amd64,linux/arm64
+    push: true
+    allowedImagePrefixes: ["ghcr.io/", "docker.io/"]
+    allowedGitHosts: ["github.com"]
+    tags: |-
+      type=ref,event=branch
+      type=ref,event=tag
+      type=sha,prefix=sha-
+  components:
+    api:
+      enabled: true
+      image: ghcr.io/ncbo/ontologies-api
+      helmImage: api
+      source:
+        type: git
+        url: https://github.com/ncbo/ontologies_api.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    cron:
+      enabled: true
+      image: ghcr.io/ncbo/ncbo-cron
+      helmImage: cron
+      source:
+        type: git
+        url: https://github.com/ncbo/ncbo_cron.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    ui:
+      enabled: true
+      image: ghcr.io/ncbo/bioportal-web-ui
+      helmImage: ui
+      source:
+        type: git
+        url: https://github.com/ncbo/bioportal_web_ui.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile

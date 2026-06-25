@@ -1,0 +1,14 @@
+apiVersion: v2
+name: ontoportal
+description: Multi-profile OntoPortal deployment chart for clean OntoPortal, MatPortal, and K3s targets.
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+keywords:
+  - ontoportal
+  - bioportal
+  - agroportal
+  - matportal
+  - k3s
+maintainers:
+  - name: MatPortal/OntoPortal deployment maintainers

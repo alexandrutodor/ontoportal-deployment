@@ -1,0 +1,36 @@
+# Local operator state and secret-bearing files
+.env
+.env.*
+data/
+*.tgz
+*.zip
+values/sites/*.yaml
+!values/sites/*.example.yaml
+!values/sites/.gitkeep
+
+# compose/generated is intentionally tracked: regenerate it with `make compose-all`
+# after changing chart values or the Compose renderer.
+!compose/generated/
+!compose/generated/docker-compose.*.yml
+!compose/generated/.env.*.sample
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform/examples/*.tfvars.example
+
+# Python
+__pycache__/
+.pytest_cache/
+# Node and browser-test artifacts
+node_modules/
+playwright-report/
+test-results/
+.npm/
+
+# Generated environment and source-build working directories
+.environment-validate/
+.image-build-src/
+dist/environments/

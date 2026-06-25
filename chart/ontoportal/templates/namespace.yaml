@@ -1,0 +1,9 @@
+{{- if .Values.global.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "ontoportal.namespace" . }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+{{- end }}

@@ -1,0 +1,16 @@
+# Skeleton only. Production Velero requires a provider plugin, credentials,
+# BackupStorageLocation, VolumeSnapshotLocation, and a restore drill.
+configuration:
+  backupStorageLocation: []
+  volumeSnapshotLocation: []
+initContainers: []
+credentials:
+  useSecret: true
+  existingSecret: ""
+snapshotsEnabled: true
+deployNodeAgent: true
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+schedules: {}

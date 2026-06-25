@@ -1,0 +1,131 @@
+# Recommendation-only VerticalPodAutoscaler overlay. It renders VPA resources in
+# updateMode: Off, so VPA records recommendations but does not mutate pods. The
+# cluster must already have the autoscaling.k8s.io/v1 VPA CRD/controller.
+
+verticalPodAutoscaling:
+  api:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 250m
+      memory: 512Mi
+    maxAllowed:
+      cpu: "4"
+      memory: 8Gi
+  cron:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 250m
+      memory: 1Gi
+    maxAllowed:
+      cpu: "4"
+      memory: 8Gi
+  ui:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 150m
+      memory: 512Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  redis:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  solr:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 250m
+      memory: 1Gi
+    maxAllowed:
+      cpu: "4"
+      memory: 8Gi
+  mgrep:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 100m
+      memory: 256Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  store:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 250m
+      memory: 1Gi
+    maxAllowed:
+      cpu: "4"
+      memory: 8Gi
+  mysql:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 100m
+      memory: 256Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  memcached:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "1"
+      memory: 2Gi
+  fairness:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 2Gi
+  matomo:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  matomoDb:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 100m
+      memory: 256Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 4Gi
+  assistant:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 2Gi
+  ontopanel:
+    enabled: true
+    updateMode: Off
+    minAllowed:
+      cpu: 50m
+      memory: 128Mi
+    maxAllowed:
+      cpu: "2"
+      memory: 2Gi

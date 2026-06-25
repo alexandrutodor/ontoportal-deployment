@@ -1,0 +1,32 @@
+# Values for the Fairwinds Vertical Pod Autoscaler Helm chart.
+# Install this chart before enabling verticalPodAutoscaling.* in the OntoPortal chart.
+
+recommender:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+updater:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+admissionController:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+metrics-server:
+  enabled: false

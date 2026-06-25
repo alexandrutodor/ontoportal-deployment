@@ -1,0 +1,103 @@
+{{- if .Values.redis.enabled }}
+{{- $root := . -}}
+{{- $ns := include "ontoportal.namespace" . -}}
+{{- $names := list "redis" -}}
+{{- if eq (.Values.redis.mode | default "shared") "split" -}}
+{{- $names = list "redis-persistent" "redis-goo-cache" "redis-http-cache" -}}
+{{- end -}}
+{{- range $i, $name := $names }}
+{{- $usesPersistentData := and $root.Values.redis.persistent (or (ne ($root.Values.redis.mode | default "shared") "split") (eq $name "redis-persistent")) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.selectorLabels" $root | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- include "ontoportal.annotations" $root | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ $name | quote }}
+      {{- include "ontoportal.selectorLabels" $root | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ $name | quote }}
+        {{- include "ontoportal.selectorLabels" $root | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" $root }}
+      {{- include "ontoportal.podSecurityContext" $root | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list $root.Values.redis $root) | nindent 6 }}
+      containers:
+        - name: redis
+          image: {{ include "ontoportal.image" $root.Values.images.redis | quote }}
+          imagePullPolicy: {{ $root.Values.images.redis.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" $root | nindent 10 }}
+          args:
+            - redis-server
+            {{- if $usesPersistentData }}
+            - --appendonly
+            - "yes"
+            {{- else }}
+            - --save
+            - ""
+            {{- end }}
+            {{- if and (eq ($root.Values.redis.mode | default "shared") "split") (ne $name "redis-persistent") }}
+            - --maxmemory-policy
+            - allkeys-lru
+            - --maxmemory
+            - "128000000"
+            {{- end }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 20
+            timeoutSeconds: 3
+          {{- with $root.Values.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $usesPersistentData }}
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          {{- end }}
+      {{- if $usesPersistentData }}
+      volumes:
+        - name: redis-data
+          {{- include "ontoportal.volumeDataSource" (list $root $root.Values.persistence.redis.existingClaim (printf "%s-%s-data" (include "ontoportal.fullname" $root) $name)) | nindent 10 }}
+      {{- end }}
+{{- if lt (add1 $i) (len $names) }}
+---
+{{ end }}
+{{- end }}
+{{- end }}

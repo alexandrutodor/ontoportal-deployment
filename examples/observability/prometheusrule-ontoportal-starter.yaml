@@ -1,0 +1,85 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ontoportal-starter-alerts
+  namespace: ontoportal
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/name: ontoportal
+    app.kubernetes.io/component: observability
+spec:
+  groups:
+    - name: ontoportal.workloads
+      rules:
+        - alert: OntoPortalDeploymentUnavailable
+          expr: |
+            kube_deployment_spec_replicas{namespace="ontoportal", deployment=~"ontoportal-(api|ui|cron|solr.*|redis.*|mysql|store|mgrep|matomo.*|fairness|assistant|ontopanel)"} > 0
+            and on(namespace, deployment)
+            kube_deployment_status_replicas_available{namespace="ontoportal", deployment=~"ontoportal-(api|ui|cron|solr.*|redis.*|mysql|store|mgrep|matomo.*|fairness|assistant|ontopanel)"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OntoPortal deployment {{ $labels.deployment }} has no available replicas"
+            description: "Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }} has desired replicas but none are available for 10 minutes."
+        - alert: OntoPortalPodRestartBurst
+          expr: |
+            sum by (namespace, pod) (
+              increase(kube_pod_container_status_restarts_total{namespace="ontoportal", pod=~"ontoportal-.*"}[15m])
+            ) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OntoPortal pod {{ $labels.pod }} is restarting"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} restarted more than 3 times in 15 minutes."
+        - alert: OntoPortalCronUnavailable
+          expr: |
+            kube_deployment_status_replicas_available{namespace="ontoportal", deployment="ontoportal-cron"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OntoPortal cron worker is unavailable"
+            description: "The cron worker deployment has no available replicas for 15 minutes; imports and background jobs may be stalled."
+    - name: ontoportal.storage
+      rules:
+        - alert: OntoPortalPersistentVolumeLowSpace
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes{namespace="ontoportal", persistentvolumeclaim=~"ontoportal-.*"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="ontoportal", persistentvolumeclaim=~"ontoportal-.*"}
+            ) < 0.15
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OntoPortal PVC {{ $labels.persistentvolumeclaim }} has less than 15% free space"
+            description: "PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is below the free-space threshold for 15 minutes."
+        - alert: OntoPortalPersistentVolumeCriticalSpace
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes{namespace="ontoportal", persistentvolumeclaim=~"ontoportal-.*"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="ontoportal", persistentvolumeclaim=~"ontoportal-.*"}
+            ) < 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OntoPortal PVC {{ $labels.persistentvolumeclaim }} has less than 5% free space"
+            description: "PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is critically low on free space."
+    - name: ontoportal.backup
+      rules:
+        - alert: OntoPortalBackupJobFailed
+          expr: |
+            sum by (namespace, job_name) (
+              increase(kube_job_status_failed{namespace="ontoportal", job_name=~".*(backup|restic|velero|volsync).*"}[1h])
+            ) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OntoPortal backup-related Job {{ $labels.job_name }} failed"
+            description: "A backup-related Kubernetes Job in namespace {{ $labels.namespace }} reported a failure in the last hour."

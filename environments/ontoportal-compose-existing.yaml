@@ -1,0 +1,14 @@
+apiVersion: deployment.ontoportal.org/v1alpha1
+kind: Environment
+metadata:
+  name: ontoportal-compose-existing
+spec:
+  profile: ontoportal-clean
+  distribution: ontoportal
+  runtime: compose
+  provider: generic
+  valuesFiles:
+    - values/profiles/ontoportal-clean.yaml
+    - values/profiles/docker-compose.yaml
+  compose:
+    enabled: true

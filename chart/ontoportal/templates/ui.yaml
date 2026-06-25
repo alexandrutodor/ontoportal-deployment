@@ -1,0 +1,224 @@
+{{- if .Values.ui.enabled }}
+{{- $secretName := include "ontoportal.secretName" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-ui
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: ui
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.ui.service.port }}
+      targetPort: http
+  selector:
+    app.kubernetes.io/component: ui
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-ui
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: ui
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: {{ .Values.ui.replicas }}
+  strategy:
+{{- toYaml .Values.ui.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ui
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: ui
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- with .Values.ui.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "ontoportal.componentScheduling" (list .Values.ui .) | nindent 6 }}
+      containers:
+        - name: ui
+          image: {{ include "ontoportal.image" .Values.images.ui | quote }}
+          imagePullPolicy: {{ .Values.images.ui.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ui.service.port }}
+          env:
+            - name: RAILS_ENV
+              value: {{ .Values.ui.railsEnv | quote }}
+            - name: RAILS_FORCE_SSL
+              value: {{ .Values.ui.forceSsl | quote }}
+            - name: BUNDLE_PATH
+              value: /data/ui/bundle
+            - name: DB_HOST
+              value: {{ printf "%s-mysql" (include "ontoportal.fullname" .) | quote }}
+            - name: BIOPORTAL_WEB_UI_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: mysqlRootPassword
+            - name: CACHE_HOST
+              value: {{ printf "%s-cache" (include "ontoportal.fullname" .) | quote }}
+            - name: MEMCACHE_SERVERS
+              value: {{ printf "%s-cache:11211" (include "ontoportal.fullname" .) | quote }}
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: apiKey
+            - name: OP_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: apiKey
+            - name: API_URL
+              value: {{ printf "http://%s-api:%v" (include "ontoportal.fullname" .) .Values.api.service.port | quote }}
+            - name: ANNOTATOR_URL
+              value: {{ printf "http://%s-api:%v/annotator" (include "ontoportal.fullname" .) .Values.api.service.port | quote }}
+            - name: SITE
+              value: {{ .Values.ui.siteName | quote }}
+            - name: ORG
+              value: {{ .Values.ui.orgName | quote }}
+            - name: ORG_URL
+              value: {{ .Values.ui.orgUrl | quote }}
+            - name: UI_THEME
+              value: {{ .Values.ui.uiTheme | quote }}
+            - name: UI_URL
+              value: {{ .Values.ui.uiUrl | quote }}
+            - name: PUBLIC_API_URL
+              value: {{ .Values.ui.publicApiUrl | quote }}
+            - name: SUPPORT_EMAIL
+              value: {{ .Values.ui.supportEmail | quote }}
+            - name: RELEASE_VERSION
+              value: {{ .Values.ui.releaseVersion | quote }}
+            - name: FAIRNESS_DISABLED
+              value: {{ .Values.ui.fairnessDisabled | quote }}
+            - name: NCBO_ANNOTATORPLUS_ENABLED
+              value: {{ .Values.ui.annotatorPlusEnabled | quote }}
+            - name: BIOMIXER_URL
+              value: {{ .Values.ui.biomixerUrl | quote }}
+            - name: BIOMIXER_PUBLIC_APIKEY
+              value: {{ .Values.ui.biomixerPublicApiKey | quote }}
+            - name: USE_LEGACY_BIOMIXER
+              value: {{ .Values.ui.useLegacyBiomixer | quote }}
+            - name: SPARQL_URL
+              value: {{ printf "http://%s:%s%s" (include "ontoportal.storeHost" . | trim) (include "ontoportal.storePort" . | trim) .Values.store.pathQuery | quote }}
+            - name: PUBLIC_SPARQL_URL
+              value: {{ .Values.ui.publicSparqlUrl | quote }}
+            - name: MATOMO_URL
+              value: {{ .Values.matomo.url | quote }}
+            - name: MATOMO_SITE_ID
+              value: {{ .Values.matomo.siteId | quote }}
+            - name: FAIRNESS_URL
+              value: {{ ternary (printf "http://%s-fairness:%v%s" (include "ontoportal.fullname" .) .Values.fairness.service.port .Values.fairness.internalPath) "" .Values.fairness.enabled | quote }}
+            - name: PUBLIC_FAIRNESS_URL
+              value: {{ .Values.fairness.publicUrl | quote }}
+            - name: SESSION_COOKIE_KEY
+              value: {{ .Values.ui.sessionCookieKey | quote }}
+            - name: SESSION_COOKIE_DOMAIN
+              value: {{ .Values.ui.sessionCookieDomain | quote }}
+            - name: SESSION_COOKIE_SAME_SITE
+              value: {{ .Values.ui.sessionCookieSameSite | quote }}
+            - name: SESSION_COOKIE_SECURE
+              value: {{ .Values.ui.sessionCookieSecure | quote }}
+            {{- if .Values.assistant.enabled }}
+            - name: AI_ASSISTANT_BACKEND_URL
+              value: {{ printf "http://%s-assistant:%v%s" (include "ontoportal.fullname" .) .Values.assistant.service.port .Values.assistant.endpointPath | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.ui.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd {{ .Values.ui.appDir | quote }}
+              mkdir -p /data/ui/bundle /data/ui/node_modules /data/ui/rails_cache /data/ui/assets /data/ui/log /data/ui/tmp/pids /app/tmp /app/public
+              rm -rf /srv/ontoportal/bundle /node_modules /app/tmp/cache log || true
+              mkdir -p /srv/ontoportal || true
+              ln -snf /data/ui/bundle /srv/ontoportal/bundle
+              ln -snf /data/ui/node_modules /node_modules
+              ln -snf /data/ui/rails_cache /app/tmp/cache
+              ln -snf /data/ui/log log
+              if [ -d /app/public/assets ] && [ ! -L /app/public/assets ]; then cp -a /app/public/assets/. /data/ui/assets/ 2>/dev/null || true; fi
+              rm -rf /app/public/assets || true
+              ln -snf /data/ui/assets /app/public/assets
+              {{- if .Values.ui.overrides.enabled }}
+              echo "UI overrides mounted at {{ .Values.ui.overrides.mountPath }}; image must opt in to loading them."
+              {{- end }}
+              {{- with .Values.ui.extraStartupScript }}
+{{ . | nindent 14 }}
+              {{- end }}
+              bundle check || bundle install
+              {{- if .Values.ui.runDbPrepare }}
+              for i in $(seq 1 30); do
+                if bundle exec rails db:prepare; then
+                  break
+                fi
+                if [ "$i" = "30" ]; then
+                  echo "ERROR: rails db:prepare failed after ${i} attempts" >&2
+                  exit 1
+                fi
+                echo "Waiting for UI database to become ready (${i}/30)" >&2
+                sleep 5
+              done
+              {{- end }}
+              exec {{ .Values.ui.startCommand }}
+          startupProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- with .Values.ui.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
+            {{- if .Values.ui.overrides.enabled }}
+            - name: ui-overrides
+              mountPath: {{ .Values.ui.overrides.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: shared-data
+          {{- include "ontoportal.volumeDataSource" (list . .Values.persistence.shared.existingClaim (printf "%s-shared-data" (include "ontoportal.fullname" .))) | nindent 10 }}
+        {{- if .Values.ui.overrides.enabled }}
+        - name: ui-overrides
+          configMap:
+            name: {{ .Values.ui.overrides.existingConfigMap | default (printf "%s-ui-overrides" (include "ontoportal.fullname" .)) }}
+        {{- end }}
+{{- end }}

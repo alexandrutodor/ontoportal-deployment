@@ -1,0 +1,40 @@
+# Azure AKS target overlay.
+# Assumes AKS CSI storage classes and either Application Gateway Ingress Controller
+# or another ingress controller are installed/configured by the platform layer.
+deploymentTarget:
+  provider: azure-aks
+  runtime: kubernetes
+
+global:
+  storageClassName: managed-csi
+  ingressClassName: ""
+
+ingress:
+  enabled: true
+  className: ""
+  useClassNameField: false
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+  tls:
+    enabled: true
+
+persistence:
+  shared:
+    storageClassName: azurefile-csi
+    accessModes: ["ReadWriteMany"]
+  solr:
+    storageClassName: managed-csi
+  redis:
+    storageClassName: managed-csi
+  store:
+    storageClassName: managed-csi
+  mysql:
+    storageClassName: managed-csi
+  matomo:
+    app:
+      storageClassName: managed-csi
+    db:
+      storageClassName: managed-csi

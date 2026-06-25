@@ -1,0 +1,30 @@
+profile      = "ontoportal-clean"
+namespace    = "ontoportal"
+release_name = "ontoportal"
+additional_values_files = [
+  "values/profiles/k3s-local.yaml"
+]
+set_sensitive_values = {
+  "secrets.apiKey"         = "replace-with-a-long-random-token"
+  "secrets.admin.password" = "replace-with-an-admin-password"
+  "secrets.mysqlRootPassword" = "replace-with-a-db-password"
+}
+
+
+# Optional platform add-ons. Enable only after reviewing docs/production-readiness.md.
+# enable_keda              = true
+# enable_vpa               = true
+# enable_monitoring        = true
+# enable_loki              = true
+# enable_grafana_alloy     = true
+# enable_trivy_operator    = true
+# enable_sonarqube         = false
+# enable_cert_manager      = true
+# enable_external_secrets  = true
+# enable_kyverno           = false
+# enable_velero            = false
+# velero_values_file       = "values/sites/velero-provider.yaml"
+
+# To exercise KEDA autoscaling, also add "values/addons/keda-autoscaling.yaml"
+# to additional_values_files after replacing k3s local-path storage with a real RWX storage class.
+# To collect VPA recommendations, enable_vpa=true and add "values/addons/vpa-recommendations.yaml".

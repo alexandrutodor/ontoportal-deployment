@@ -1,0 +1,33 @@
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "values/addons/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "values/addons/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.8.5"
+      - name: Terraform fmt
+        run: terraform -chdir=terraform fmt -check -recursive
+      - name: Terraform init
+        run: terraform -chdir=terraform init -backend=false -lockfile=readonly
+      - name: Terraform validate
+        run: terraform -chdir=terraform validate

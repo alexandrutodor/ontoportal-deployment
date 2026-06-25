@@ -1,0 +1,53 @@
+# Grafana Alloy log collector that forwards Kubernetes pod logs to the in-cluster Loki gateway.
+# Adjust the loki.write endpoint if Loki is installed under another release/namespace.
+alloy:
+  configMap:
+    create: true
+    content: |
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push"
+        }
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+          target_label  = "release"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+          target_label  = "component"
+        }
+      }
+
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.default.receiver]
+      }
+controller:
+  type: daemonset
+serviceMonitor:
+  enabled: true

@@ -1,0 +1,48 @@
+# Build AgroPortal-flavoured images from AgroPortal public repositories.
+deploymentTarget:
+  distribution: agroportal
+  imageMode: build
+
+imageBuilds:
+  enabled: true
+  defaults:
+    registry: ghcr.io/agroportal
+    platforms: linux/amd64,linux/arm64
+    push: true
+    allowedImagePrefixes: ["ghcr.io/", "docker.io/"]
+    allowedGitHosts: ["github.com"]
+    tags: |-
+      type=ref,event=branch
+      type=ref,event=tag
+      type=sha,prefix=sha-
+  components:
+    api:
+      enabled: true
+      image: ghcr.io/agroportal/ontologies-api
+      helmImage: api
+      source:
+        type: git
+        url: https://github.com/agroportal/ontologies_api.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    cron:
+      enabled: true
+      image: ghcr.io/agroportal/ncbo-cron
+      helmImage: cron
+      source:
+        type: git
+        url: https://github.com/agroportal/ncbo_cron.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    ui:
+      enabled: true
+      image: ghcr.io/agroportal/ontoportal-web-ui
+      helmImage: ui
+      source:
+        type: git
+        url: https://github.com/agroportal/bioportal_web_ui.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile

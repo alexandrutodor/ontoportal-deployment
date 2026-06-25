@@ -1,0 +1,23 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ontoportal.fullname" . }}
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "ontoportal.namespace" . }}
+  endpoints:
+    - port: http
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+{{- end }}

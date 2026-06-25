@@ -1,0 +1,219 @@
+{{- if .Values.api.enabled }}
+{{- $secretName := include "ontoportal.secretName" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-api
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: api
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.api.service.port }}
+      targetPort: http
+  selector:
+    app.kubernetes.io/component: api
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+{{- if .Values.patches.matportalApiParentNormalization.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-api-runtime-patches
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: api
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+data:
+  matportal_parent_normalization.rb: |
+{{ .Files.Get "files/matportal/matportal_parent_normalization.rb" | nindent 4 }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-api
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: api
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  strategy:
+{{- toYaml .Values.api.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list .Values.api .) | nindent 6 }}
+      containers:
+        - name: api
+          image: {{ include "ontoportal.image" .Values.images.api | quote }}
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.service.port }}
+          env:
+            - name: RACK_ENV
+              value: "production"
+            - name: RAILS_ENV
+              value: "production"
+            - name: BUNDLE_PATH
+              value: /data/bundle/api
+            - name: BUNDLE_APP_CONFIG
+              value: {{ printf "%s/.bundle" .Values.api.appDir | quote }}
+            - name: COVERAGE
+              value: "false"
+            - name: OP_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: apiKey
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: apiKey
+            - name: STORE_KB
+              value: {{ .Values.store.kbName | quote }}
+            - name: REDIS_HOST
+              value: {{ include "ontoportal.redisHostPersistent" . | trim | quote }}
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_GOO_CACHE_HOST
+              value: {{ include "ontoportal.redisHostGoo" . | trim | quote }}
+            - name: REDIS_HTTP_CACHE_HOST
+              value: {{ include "ontoportal.redisHostHttp" . | trim | quote }}
+            - name: REDIS_PERSISTENT_HOST
+              value: {{ include "ontoportal.redisHostPersistent" . | trim | quote }}
+            - name: SOLR_TERM_SEARCH_URL
+              value: {{ include "ontoportal.solrTermUrl" . | trim | quote }}
+            - name: SOLR_PROP_SEARCH_URL
+              value: {{ include "ontoportal.solrPropUrl" . | trim | quote }}
+            - name: MGREP_HOST
+              value: {{ printf "%s-mgrep" (include "ontoportal.fullname" .) | quote }}
+            - name: MGREP_PORT
+              value: {{ .Values.mgrep.service.port | quote }}
+            - name: MGREP_DICT_PATH
+              value: {{ .Values.mgrep.dictionaryPath | quote }}
+            - name: MGREP_DICTIONARY_FILE
+              value: {{ .Values.mgrep.dictionaryPath | quote }}
+            - name: REPOSITORY_FOLDER
+              value: /data/repository
+            - name: REPORT_PATH
+              value: /data/reports/ontologies_report.json
+            - name: REST_URL_PREFIX
+              value: {{ .Values.api.restUrlPrefix | default .Values.api.publicUrl | quote }}
+            - name: PUBLIC_API_URL
+              value: {{ .Values.ui.publicApiUrl | quote }}
+            - name: ENABLE_SLICES
+              value: {{ .Values.api.enableSlices | quote }}
+            - name: GOO_BACKEND_NAME
+              value: {{ include "ontoportal.storeBackendName" . | trim | quote }}
+            - name: GOO_HOST
+              value: {{ include "ontoportal.storeHost" . | trim | quote }}
+            - name: GOO_PORT
+              value: {{ include "ontoportal.storePort" . | trim | quote }}
+            - name: GOO_PATH_DATA
+              value: {{ .Values.store.pathData | quote }}
+            - name: GOO_PATH_QUERY
+              value: {{ .Values.store.pathQuery | quote }}
+            - name: GOO_PATH_UPDATE
+              value: {{ .Values.store.pathUpdate | quote }}
+            {{- if .Values.api.keycloakUserinfoUrl }}
+            - name: KEYCLOAK_USERINFO_URL
+              value: {{ .Values.api.keycloakUserinfoUrl | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.api.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd {{ .Values.api.appDir | quote }}
+              git config --global --add safe.directory '*' || true
+              mkdir -p /data/repository /data/reports /data/mgrep /data/history /data/api/log /data/api/tmp/pids /data/bundle/api /srv/ontoportal/data
+              rm -rf log tmp || true
+              ln -snf /data/api/log log
+              ln -snf /data/api/tmp tmp
+              ln -snf /data/repository /srv/ontoportal/data/repository
+              ln -snf /data/reports /srv/ontoportal/data/reports
+              ln -snf /data/mgrep /srv/ontoportal/data/mgrep
+              ANNO_DIR=$(bundle show ncbo_annotator 2>/dev/null || true)
+              if [ -n "${ANNO_DIR}" ] && [ -d "${ANNO_DIR}/lib/Lemmatizer" ]; then
+                ln -snf "${ANNO_DIR}/lib/Lemmatizer" lib/Lemmatizer || true
+              fi
+              {{ include "ontoportal.runtimeConfigScript" . | nindent 14 }}
+              {{- if .Values.patches.matportalApiParentNormalization.enabled }}
+              cp /opt/ontoportal/matportal-patches/matportal_parent_normalization.rb {{ .Values.api.appDir }}/matportal_parent_normalization.rb
+              API_ENV_FILE="config/environments/${RACK_ENV:-production}.rb"
+              if ! grep -q "MATPORTAL_PARENT_NORMALIZATION" "${API_ENV_FILE}" 2>/dev/null; then
+                printf '\n# MATPORTAL_PARENT_NORMALIZATION\nbegin\n  require_relative "../matportal_parent_normalization"\nrescue => e\n  puts "matportal parent normalization failed: #{e.class}: #{e.message}"\nend\n' >> "${API_ENV_FILE}"
+              fi
+              {{- end }}
+              {{- with .Values.api.extraStartupScript }}
+{{ . | nindent 14 }}
+              {{- end }}
+              bundle check || bundle install
+              rm -f tmp/pids/*.pid || true
+              exec {{ .Values.api.startCommand }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.api.probes.readinessPath | quote }}
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.readinessPath | quote }}
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.probes.livenessPath | quote }}
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
+            {{- if .Values.patches.matportalApiParentNormalization.enabled }}
+            - name: api-runtime-patches
+              mountPath: /opt/ontoportal/matportal-patches
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: shared-data
+          {{- include "ontoportal.volumeDataSource" (list . .Values.persistence.shared.existingClaim (printf "%s-shared-data" (include "ontoportal.fullname" .))) | nindent 10 }}
+        {{- if .Values.patches.matportalApiParentNormalization.enabled }}
+        - name: api-runtime-patches
+          configMap:
+            name: {{ include "ontoportal.fullname" . }}-api-runtime-patches
+        {{- end }}
+{{- end }}

@@ -1,0 +1,88 @@
+{{- $root := . -}}
+{{- $components := dict "api" .Values.api "ui" .Values.ui "fairness" .Values.fairness "assistant" .Values.assistant -}}
+{{- range $name, $component := $components }}
+{{- $autoscaling := index $root.Values.autoscaling $name | default dict -}}
+{{- $mode := default "hpa" $autoscaling.mode -}}
+{{- $keda := $autoscaling.keda | default dict -}}
+{{- if and $component.enabled $autoscaling.enabled (eq $mode "keda") }}
+{{- $customTriggers := $keda.triggers | default list -}}
+{{- $hasCpu := $autoscaling.targetCPUUtilizationPercentage -}}
+{{- $hasMemory := $autoscaling.targetMemoryUtilizationPercentage -}}
+{{- if and (not $hasCpu) (not $hasMemory) (empty $customTriggers) }}
+{{- fail (printf "autoscaling.%s.mode=keda requires keda.triggers or CPU/memory targets" $name) }}
+{{- end }}
+{{- $resources := $component.resources | default dict -}}
+{{- $requests := $resources.requests | default dict -}}
+{{- if and $hasCpu (not $requests.cpu) }}
+{{- fail (printf "autoscaling.%s targetCPUUtilizationPercentage requires %s.resources.requests.cpu" $name $name) }}
+{{- end }}
+{{- if and $hasMemory (not $requests.memory) }}
+{{- fail (printf "autoscaling.%s targetMemoryUtilizationPercentage requires %s.resources.requests.memory" $name $name) }}
+{{- end }}
+{{- $minReplicas := int ($autoscaling.minReplicas | default 1) -}}
+{{- $maxReplicas := int ($autoscaling.maxReplicas | default 3) -}}
+{{- if gt $minReplicas $maxReplicas }}
+{{- fail (printf "autoscaling.%s minReplicas cannot be greater than maxReplicas" $name) }}
+{{- end }}
+{{- if and (eq $minReplicas 0) (empty $customTriggers) }}
+{{- fail (printf "autoscaling.%s.mode=keda cannot use minReplicas=0 with CPU/memory-only triggers; add an event trigger such as cron/prometheus or keep minReplicas >= 1" $name) }}
+{{- end }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  namespace: {{ include "ontoportal.namespace" $root }}
+  labels:
+    app.kubernetes.io/component: {{ $name | quote }}
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- $annotations := merge (dict) ($root.Values.global.annotations | default dict) ($keda.annotations | default dict) }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ontoportal.fullname" $root }}-{{ $name }}
+  minReplicaCount: {{ $minReplicas }}
+  maxReplicaCount: {{ $maxReplicas }}
+  {{- with $keda.pollingInterval }}
+  pollingInterval: {{ . }}
+  {{- end }}
+  {{- with $keda.cooldownPeriod }}
+  cooldownPeriod: {{ . }}
+  {{- end }}
+  {{- with $keda.idleReplicaCount }}
+  idleReplicaCount: {{ . }}
+  {{- end }}
+  {{- if $keda.restoreToOriginalReplicaCount }}
+  restoreToOriginalReplicaCount: true
+  {{- end }}
+  {{- with $keda.fallback }}
+  fallback:
+{{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $keda.advanced }}
+  advanced:
+{{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+    {{- if $hasCpu }}
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ $hasCpu | quote }}
+    {{- end }}
+    {{- if $hasMemory }}
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: {{ $hasMemory | quote }}
+    {{- end }}
+{{- with $customTriggers }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+---
+{{- end }}
+{{- end }}

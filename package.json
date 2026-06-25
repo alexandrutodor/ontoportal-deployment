@@ -1,0 +1,14 @@
+{
+  "name": "ontoportal-deployment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed",
+    "test:ui:report": "playwright show-report",
+    "validate:ui": "node --check playwright.config.mjs && find tests/ui -name '*.mjs' -print0 | xargs -0 -n1 node --check"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
+  }
+}

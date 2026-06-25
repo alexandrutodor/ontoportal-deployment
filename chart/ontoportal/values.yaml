@@ -1,0 +1,736 @@
+# Base values shared by all deployment profiles.
+# Profiles under values/profiles/*.yaml override this file.
+
+nameOverride: ""
+fullnameOverride: ""
+
+profile:
+  name: ontoportal-clean
+  matportal: false
+  description: "Upstream-compatible OntoPortal baseline with no MatPortal runtime patches enabled."
+
+# Describes the intended deployment target for labels, validation, and generated
+# environment plans. It does not force a cloud/provider integration by itself;
+# provider overlays under values/cloud/* apply the concrete storage/ingress choices.
+deploymentTarget:
+  distribution: ontoportal
+  runtime: kubernetes
+  provider: generic
+  imageMode: existing
+
+global:
+  namespace: ontoportal
+  createNamespace: false
+  imagePullSecrets: []
+  storageClassName: local-path
+  ingressClassName: traefik
+  labels: {}
+  annotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podSecurityContext:
+    fsGroup: 1000
+  # Applied to every container when set. Keep the default empty because several
+  # upstream images initialize writable paths as root and can fail if all Linux
+  # capabilities are dropped before site-specific testing.
+  containerSecurityContext: {}
+
+secrets:
+  create: true
+  existingSecret: ""
+  apiKey: ""
+  mysqlRootPassword: ""
+  storeDbaPassword: ""
+  storeDavPassword: ""
+  matomoDbPassword: ""
+  matomoDbRootPassword: ""
+  mobiSyncInternalToken: ""
+  admin:
+    enabled: true
+    username: admin
+    email: admin@example.org
+    password: ""
+
+images:
+  api:
+    repository: bioportal/ontologies_api
+    tag: latest
+    pullPolicy: IfNotPresent
+  cron:
+    repository: bioportal/ncbo_cron
+    tag: latest
+    pullPolicy: IfNotPresent
+  ui:
+    repository: agroportal/ontoportal_web_ui
+    tag: development
+    pullPolicy: IfNotPresent
+  redis:
+    repository: redis
+    tag: "7"
+    pullPolicy: IfNotPresent
+  solr:
+    repository: solr
+    tag: "9.1"
+    pullPolicy: IfNotPresent
+  mgrep:
+    repository: ontoportal/mgrep
+    tag: "0.0.2"
+    pullPolicy: IfNotPresent
+  virtuoso:
+    repository: tenforce/virtuoso
+    tag: virtuoso7.2.5
+    pullPolicy: IfNotPresent
+  mysql:
+    repository: mysql
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+  memcached:
+    repository: memcached
+    tag: latest
+    pullPolicy: IfNotPresent
+  fairness:
+    repository: matportal/fairness
+    tag: matportal
+    pullPolicy: IfNotPresent
+  matomo:
+    repository: matomo
+    tag: "5"
+    pullPolicy: IfNotPresent
+  matomoDb:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  assistant:
+    repository: ghcr.io/matportal/ontoportal-agent
+    tag: latest
+    pullPolicy: IfNotPresent
+  ontopanel:
+    repository: ghcr.io/matportal/ontopanel
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Optional image source-build plan. Helm itself only consumes images.*. The
+# scripts/image-build-matrix.py and scripts/render-environment.py helpers can
+# read this section to build images from local or Git sources and then generate
+# an image values overlay pointing images.* at the produced tags.
+imageBuilds:
+  enabled: false
+  defaults:
+    registry: ghcr.io/ontoportal
+    platforms: linux/amd64,linux/arm64
+    push: false
+    tags: |-
+      type=ref,event=branch
+      type=ref,event=tag
+      type=sha,prefix=sha-
+    allowedImagePrefixes:
+      - ghcr.io/
+      - docker.io/
+    allowedGitHosts:
+      - github.com
+  components:
+    api:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: https://github.com/ontoportal/ontologies_api.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    cron:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: https://github.com/ontoportal/ncbo_cron.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    ui:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: https://github.com/ontoportal/ontoportal_web_ui.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    mgrep:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: https://github.com/ontoportal/mgrep.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+    fairness:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: ""
+        ref: main
+        context: .
+        dockerfile: Dockerfile
+    assistant:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: ""
+        ref: main
+        context: .
+        dockerfile: Dockerfile
+    ontopanel:
+      enabled: false
+      image: ""
+      source:
+        type: git
+        url: ""
+        ref: main
+        context: .
+        dockerfile: Dockerfile
+
+persistence:
+  enabled: true
+  shared:
+    existingClaim: ""
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 100Gi
+  solr:
+    existingClaim: ""
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 30Gi
+  redis:
+    existingClaim: ""
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+  store:
+    existingClaim: ""
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 150Gi
+  mysql:
+    existingClaim: ""
+    storageClassName: ""
+    accessModes: ["ReadWriteOnce"]
+    size: 20Gi
+  matomo:
+    app:
+      existingClaim: ""
+      storageClassName: ""
+      accessModes: ["ReadWriteOnce"]
+      size: 5Gi
+    db:
+      existingClaim: ""
+      storageClassName: ""
+      accessModes: ["ReadWriteOnce"]
+      size: 10Gi
+
+api:
+  enabled: true
+  replicas: 1
+  strategy:
+    type: Recreate
+  service:
+    port: 9393
+  appDir: /srv/ontoportal/ontologies_api
+  startCommand: bundle exec rackup -o 0.0.0.0 --port 9393
+  publicUrl: http://localhost:9393
+  restUrlPrefix: ""
+  enableSlices: "false"
+  keycloakUserinfoUrl: ""
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: {}
+  extraStartupScript: ""
+  probes:
+    readinessPath: /
+    livenessPath: /
+
+cron:
+  enabled: true
+  appDir: /srv/ontoportal/ncbo_cron
+  startCommand: bundle exec bin/ncbo_cron
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: {}
+  extraStartupScript: ""
+  starterOntology:
+    enabled: false
+    required: false
+    acronym: STY
+    fromApiUrl: https://data.bioontology.org
+    # Deprecated: not rendered into Kubernetes manifests. Use fromApiKeySecret.
+    fromApiKey: ""
+    fromApiKeySecret:
+      name: ""
+      key: apiKey
+
+ui:
+  enabled: true
+  replicas: 1
+  strategy:
+    type: Recreate
+  service:
+    port: 3000
+  appDir: /app
+  startCommand: bundle exec puma -C /dev/null -b tcp://0.0.0.0:3000 -e production
+  runDbPrepare: true
+  railsEnv: production
+  siteName: OntoPortal
+  orgName: OntoPortal
+  orgUrl: https://ontoportal.org
+  supportEmail: support@example.org
+  uiTheme: ontoportal
+  uiUrl: http://localhost:3000
+  publicApiUrl: http://localhost:9393
+  forceSsl: "false"
+  releaseVersion: "OntoPortal deployment"
+  fairnessDisabled: "true"
+  annotatorPlusEnabled: "false"
+  biomixerUrl: ""
+  biomixerPublicApiKey: ""
+  useLegacyBiomixer: "true"
+  publicSparqlUrl: ""
+  sessionCookieKey: _session_id
+  sessionCookieDomain: ""
+  sessionCookieSameSite: ""
+  sessionCookieSecure: ""
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  hostAliases: []
+  extraEnv: {}
+  extraStartupScript: ""
+  overrides:
+    enabled: false
+    existingConfigMap: ""
+    mountPath: /opt/ontoportal/ui-overrides
+
+redis:
+  enabled: true
+  # shared: one Redis service for all OntoPortal Redis roles.
+  # split: separate persistent/goo-cache/http-cache services like upstream docker-compose.
+  mode: split
+  persistent: true
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+solr:
+  enabled: true
+  # single: one Solr service. split: term and property services like upstream docker-compose.
+  mode: split
+  port: 8983
+  termCore: term_search_core1
+  propCore: prop_search_core1
+  # For a strict upstream-compatible clean deployment, supply configsets generated from
+  # ontologies_linked_data/test/solr/generate_ncbo_configsets.sh as a ConfigMap or PVC.
+  configsets:
+    existingConfigMap: ""
+    existingClaim: ""
+    mountPath: /configsets
+    termPath: /configsets/term_search
+    propPath: /configsets/property_search
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+mgrep:
+  enabled: true
+  service:
+    port: 55556
+  containerPort: 55556
+  dictionaryPath: /data/mgrep/dictionary.txt
+  command: ""
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+store:
+  enabled: true
+  engine: virtuoso # virtuoso or external
+  # Goo backend name for external stores; defaults to "sparql" for store.engine=external.
+  backendName: ""
+  service:
+    port: 8890
+  kbName: ontoportal_kb
+  host: ""
+  port: ""
+  pathData: /sparql/
+  pathQuery: /sparql/
+  pathUpdate: /sparql/
+  healthPath: /status/
+  virtuoso:
+    dbaPasswordSecretKey: storeDbaPassword
+    davPasswordSecretKey: storeDavPassword
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+mysql:
+  enabled: true
+  database: bioportal_ui_production
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+memcached:
+  enabled: true
+  memoryMb: 1024
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+fairness:
+  enabled: false
+  replicas: 1
+  service:
+    port: 8080
+  publicUrl: ""
+  internalPath: /fairness-assessment/
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+matomo:
+  enabled: false
+  host: ""
+  url: ""
+  siteId: "1"
+  service:
+    port: 80
+  db:
+    name: matomo
+    user: matomo
+  archive:
+    enabled: true
+    schedule: "15 * * * *"
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+assistant:
+  enabled: false
+  replicas: 1
+  service:
+    port: 8090
+  endpointPath: /api/v1/chat/stream
+  databaseUrl: ""
+  openaiApiKeySecret:
+    name: ""
+    key: OPENAI_API_KEY
+  ontoportalApiKeySecret:
+    name: ""
+    key: ONTOPORTAL_API_KEY
+  internalTokenSecret:
+    name: ""
+    key: mobiSyncInternalToken
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ontopanel:
+  enabled: false
+  service:
+    port: 8000
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: true
+  className: ""
+  # Some provider controllers, notably the built-in GKE ingress controller,
+  # still rely on annotations rather than spec.ingressClassName. Set this false
+  # in provider overlays when the controller requires annotation-only selection.
+  useClassNameField: true
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+  hosts:
+    ui: localhost
+    api: ""
+    matomo: ""
+  paths:
+    ui: /
+    api: /api
+    apiRoot: /
+    fairness: /fairness-assessment
+    assistantStream: /assistant-api/v1/chat/stream
+
+
+# Optional production controls. These are intentionally disabled in the baseline so
+# local k3s and Docker Compose remain simple. Enable them in site/production overlays.
+podDisruptionBudgets:
+  api:
+    enabled: false
+    minAvailable: 1
+  ui:
+    enabled: false
+    minAvailable: 1
+  fairness:
+    enabled: false
+    minAvailable: 1
+  assistant:
+    enabled: false
+    minAvailable: 1
+  matomo:
+    enabled: false
+    minAvailable: 1
+
+autoscaling:
+  # mode: hpa uses autoscaling/v2 HorizontalPodAutoscaler.
+  # mode: keda renders keda.sh/v1alpha1 ScaledObject and requires KEDA CRDs.
+  # KEDA triggers may be supplied explicitly under keda.triggers, or CPU/memory
+  # triggers can be generated from targetCPUUtilizationPercentage and
+  # targetMemoryUtilizationPercentage when resource requests are configured.
+  api:
+    enabled: false
+    mode: hpa
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+    behavior: {}
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      idleReplicaCount: null
+      restoreToOriginalReplicaCount: false
+      annotations: {}
+      fallback: {}
+      advanced: {}
+      triggers: []
+  ui:
+    enabled: false
+    mode: hpa
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+    behavior: {}
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      idleReplicaCount: null
+      restoreToOriginalReplicaCount: false
+      annotations: {}
+      fallback: {}
+      advanced: {}
+      triggers: []
+  fairness:
+    enabled: false
+    mode: hpa
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+    behavior: {}
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      idleReplicaCount: null
+      restoreToOriginalReplicaCount: false
+      annotations: {}
+      fallback: {}
+      advanced: {}
+      triggers: []
+  assistant:
+    enabled: false
+    mode: hpa
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+    behavior: {}
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      idleReplicaCount: null
+      restoreToOriginalReplicaCount: false
+      annotations: {}
+      fallback: {}
+      advanced: {}
+      triggers: []
+
+
+verticalPodAutoscaling:
+  # VerticalPodAutoscaler resources use autoscaling.k8s.io/v1 and require the VPA
+  # CRDs/controller to be installed before this chart is applied. Defaults are
+  # recommendation-only (updateMode: Off) so teams can right-size requests before
+  # allowing VPA to mutate pods.
+  # Do not combine mutating VPA modes with CPU/memory based HPA/KEDA for the same
+  # component; use VPA Off, or make horizontal scaling depend on non-resource metrics.
+  api:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  cron:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  ui:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  redis:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  solr:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  mgrep:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  store:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  mysql:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  memcached:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  fairness:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  matomo:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  matomoDb:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  assistant:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+  ontopanel:
+    enabled: false
+    updateMode: Off
+    controlledResources: ["cpu", "memory"]
+    controlledValues: RequestsOnly
+    minAllowed: {}
+    maxAllowed: {}
+    annotations: {}
+    containerPolicies: []
+
+networkPolicy:
+  enabled: false
+  allowSameNamespace: true
+  allowIngressController: false
+  ingressNamespaceSelector: {}
+  ingressPodSelector: {}
+  allowAllEgress: true
+  extraIngress: []
+  extraEgress: []
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+patches:
+  # Clean OntoPortal profile leaves this disabled. MatPortal can enable it explicitly.
+  matportalApiParentNormalization:
+    enabled: false
+  runtimeHotfixes:
+    enabled: false

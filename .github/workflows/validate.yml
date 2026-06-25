@@ -1,0 +1,47 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install Python dependencies
+        run: pip install pyyaml
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+      - name: Validate repository
+        run: make validate
+      - name: Validate UI test syntax
+        run: make validate-ui-tests
+      - name: Render Helm profiles
+        run: |
+          helm template ontoportal chart/ontoportal --namespace ontoportal -f values/profiles/ontoportal-clean.yaml -f values/profiles/k3s-local.yaml >/tmp/ontoportal-clean.yaml
+          helm template agroportal chart/ontoportal --namespace agroportal -f values/profiles/agroportal-clean.yaml -f values/profiles/k3s-local.yaml >/tmp/agroportal-clean.yaml
+          helm template matportal chart/ontoportal --namespace matportal -f values/profiles/matportal.yaml -f values/profiles/k3s-local.yaml -f values/addons/matomo.yaml -f values/addons/fairness.yaml >/tmp/matportal.yaml
+          helm template ontoportal-hpa chart/ontoportal --namespace ontoportal -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/hpa-autoscaling.yaml >/tmp/ontoportal-hpa.yaml
+          helm template ontoportal-keda chart/ontoportal --namespace ontoportal -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/keda-autoscaling.yaml >/tmp/ontoportal-keda.yaml
+          helm template ontoportal-vpa chart/ontoportal --namespace ontoportal -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/vpa-recommendations.yaml >/tmp/ontoportal-vpa.yaml
+      - name: Render Compose
+        run: make compose-all
+      - name: Check generated Compose snapshots are current
+        run: git diff --exit-code -- compose/generated
+      - name: Validate Compose configuration
+        run: make compose-config
+      - name: Production readiness warnings
+        run: |
+          python3 scripts/production-readiness-check.py -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml
+          python3 scripts/production-readiness-check.py -f values/profiles/matportal.yaml -f values/profiles/production-recommended.yaml
+          python3 scripts/production-readiness-check.py -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/hpa-autoscaling.yaml
+          python3 scripts/production-readiness-check.py -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/keda-autoscaling.yaml
+          python3 scripts/production-readiness-check.py -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/addons/vpa-recommendations.yaml

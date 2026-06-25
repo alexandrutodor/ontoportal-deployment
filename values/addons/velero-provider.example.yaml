@@ -1,0 +1,17 @@
+# Provider-specific Velero values example. Copy this file to a private/site values file,
+# then add the required provider plugin, credentials, BackupStorageLocation,
+# VolumeSnapshotLocation, schedules, retention, and tested restore procedure.
+configuration:
+  backupStorageLocation: []
+  volumeSnapshotLocation: []
+initContainers: []
+credentials:
+  useSecret: true
+  existingSecret: ""
+snapshotsEnabled: true
+deployNodeAgent: true
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+schedules: {}

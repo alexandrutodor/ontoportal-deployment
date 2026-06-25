@@ -1,0 +1,5 @@
+matomo:
+  enabled: true
+  host: matomo.localhost
+  url: http://matomo.localhost
+  siteId: "1"

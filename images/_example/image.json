@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "image": "ghcr.io/matportal/example-helper",
+  "context": "images/_example",
+  "dockerfile": "images/_example/Dockerfile",
+  "platforms": "linux/amd64,linux/arm64",
+  "tags": "type=ref,event=branch\ntype=ref,event=tag\ntype=sha,prefix=sha-"
+}

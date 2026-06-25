@@ -1,0 +1,7 @@
+# Optional Azure Files example for API/UI horizontal scaling.
+# Apply only after testing the azurefile-csi or azurefile-csi-premium StorageClass
+# with the same security, performance, and backup requirements as the site.
+persistence:
+  shared:
+    storageClassName: azurefile-csi-premium
+    accessModes: ["ReadWriteMany"]

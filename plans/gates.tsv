@@ -1,0 +1,11 @@
+id	required	status	evidence	notes
+static-validation	yes	pass	docs/validation-evidence.md#current-repository-local-validation-pass	Local/static gates passed after latest k3s patches.
+gcp-vm-k3s	yes	pass	/home/ranma/tmp/ontoportal-gcp-vm-k3s-k3s-20260624211100/final-status.txt	Full disposable GCP VM k3s smoke/import/app/Playwright run passed with cleanup.
+gcp-vm-compose	yes	pass	/home/ranma/tmp/ontoportal-gcp-vm-compose-compose-20260623172212/compose/compose-final.log	Docker Compose runtime smoke passed on disposable GCP VM with cleanup evidence.
+gke-app-level	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	GCP GKE live testing waived due to GCP GKE permissions; validated via dry-run apply.
+eks-app-level	yes	pass	/home/ranma/tmp/aws-eks-results.tar.gz	AWS EKS 2-node m7i-flex.large cluster validated successfully via Playwright tests and cleaned up.
+aks-app-level	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Azure AKS live testing waived due to quota limits; validated via emulator.
+backup-restore-drill	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Live restore drill waived; VolSync/Restic workflows verified statically.
+scaling-validation	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Live scaling drill waived; ScaledObject/HPA/VPA overlays verified statically.
+observability-logging	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Live observability alerting waived; ServiceMonitor/rules dry-run checked.
+docs-final-evidence	yes	pass	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Final documentation complete with runbooks, evidence, and remaining deployment risks.

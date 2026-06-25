@@ -1,0 +1,157 @@
+{{- $ns := include "ontoportal.namespace" . -}}
+{{- if and .Values.persistence.enabled (not .Values.persistence.shared.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-shared-data
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.shared.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.shared.size }}
+  {{- $sc := .Values.persistence.shared.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- if and .Values.persistence.enabled .Values.solr.enabled (not .Values.persistence.solr.existingClaim) }}
+{{- $solrClaims := list "solr" -}}
+{{- if eq (.Values.solr.mode | default "single") "split" -}}
+{{- $solrClaims = list "solr-term" "solr-prop" -}}
+{{- end -}}
+{{- range $i, $suffix := $solrClaims }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" $ }}-{{ $suffix }}-data
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" $ | nindent 4 }}
+  {{- include "ontoportal.annotations" $ | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml $.Values.persistence.solr.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ $.Values.persistence.solr.size }}
+  {{- $sc := $.Values.persistence.solr.storageClassName | default $.Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- end }}
+{{- if and .Values.persistence.enabled .Values.redis.enabled .Values.redis.persistent (not .Values.persistence.redis.existingClaim) }}
+{{- $redisClaim := "redis" -}}
+{{- if eq (.Values.redis.mode | default "shared") "split" -}}
+{{- $redisClaim = "redis-persistent" -}}
+{{- end -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-{{ $redisClaim }}-data
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.redis.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.redis.size }}
+  {{- $sc := .Values.persistence.redis.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- if and .Values.persistence.enabled .Values.store.enabled (ne .Values.store.engine "external") (not .Values.persistence.store.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-store-data
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.store.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.store.size }}
+  {{- $sc := .Values.persistence.store.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- if and .Values.persistence.enabled .Values.mysql.enabled (not .Values.persistence.mysql.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-mysql-data
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.mysql.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.mysql.size }}
+  {{- $sc := .Values.persistence.mysql.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- if and .Values.persistence.enabled .Values.matomo.enabled (not .Values.persistence.matomo.app.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-matomo-app
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.matomo.app.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.matomo.app.size }}
+  {{- $sc := .Values.persistence.matomo.app.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+{{ end }}
+{{- if and .Values.persistence.enabled .Values.matomo.enabled (not .Values.persistence.matomo.db.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-matomo-db
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.matomo.db.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.matomo.db.size }}
+  {{- $sc := .Values.persistence.matomo.db.storageClassName | default .Values.global.storageClassName }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+{{- end }}

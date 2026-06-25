@@ -1,0 +1,20 @@
+# Deploy to an existing Google Kubernetes Engine cluster. This module does not
+# create the cluster. The GKE overlay uses the ingress annotation expected by the
+# built-in GKE Ingress controller instead of spec.ingressClassName.
+profile = "ontoportal-clean"
+namespace = "ontoportal"
+release_name = "ontoportal"
+create_namespace = true
+additional_values_files = [
+  "values/profiles/production-recommended.yaml",
+  "values/cloud/gcp-gke.yaml",
+  # Add for API/UI horizontal scaling after enabling/testing Filestore CSI:
+  # "values/cloud/gcp-gke-rwx-filestore.example.yaml",
+  # Add site-specific hosts/secrets/image pins:
+  # "values/sites/ontoportal-prod.yaml",
+]
+enable_cert_manager = true
+enable_external_secrets = true
+enable_monitoring = true
+enable_keda = false
+enable_vpa = false

@@ -1,0 +1,87 @@
+{{- $engine := .Values.store.engine | default "virtuoso" | lower -}}
+{{- if and .Values.store.enabled (ne $engine "external") }}
+{{- if ne $engine "virtuoso" -}}
+{{- fail "store.engine must be 'virtuoso' or 'external'" -}}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-store
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: store
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: sparql
+      port: {{ .Values.store.service.port }}
+      targetPort: sparql
+  selector:
+    app.kubernetes.io/component: store
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-store
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: store
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: store
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: store
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list .Values.store .) | nindent 6 }}
+      containers:
+        - name: store
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          image: {{ include "ontoportal.image" .Values.images.virtuoso | quote }}
+          imagePullPolicy: {{ .Values.images.virtuoso.pullPolicy }}
+          ports:
+            - name: sparql
+              containerPort: 8890
+          env:
+            - name: SPARQL_UPDATE
+              value: "true"
+            - name: DBA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ontoportal.secretName" . }}
+                  key: {{ .Values.store.virtuoso.dbaPasswordSecretKey }}
+            - name: DAV_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ontoportal.secretName" . }}
+                  key: {{ .Values.store.virtuoso.davPasswordSecretKey }}
+          volumeMounts:
+            - name: store-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: "/sparql/?query=ASK%20%7B%7D"
+              port: sparql
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          {{- with .Values.store.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: store-data
+          {{- include "ontoportal.volumeDataSource" (list . .Values.persistence.store.existingClaim (printf "%s-store-data" (include "ontoportal.fullname" .))) | nindent 10 }}
+{{- end }}

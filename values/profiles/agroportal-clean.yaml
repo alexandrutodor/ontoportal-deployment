@@ -1,0 +1,51 @@
+profile:
+  name: agroportal-clean
+  matportal: false
+  description: "AgroPortal-flavoured clean deployment using AgroPortal images and branding without MatPortal-specific hooks."
+
+global:
+  namespace: agroportal
+
+images:
+  api:
+    repository: agroportal/ontologies_api
+    tag: development
+  cron:
+    repository: agroportal/ncbo_cron
+    tag: development
+  ui:
+    repository: agroportal/ontoportal_web_ui
+    tag: development
+  mgrep:
+    repository: ontoportal/mgrep-ncbo
+    tag: "0.1"
+
+api:
+  publicUrl: http://localhost:9393
+  restUrlPrefix: http://localhost:9393
+
+ui:
+  siteName: AgroPortal
+  orgName: AgroPortal
+  orgUrl: https://agroportal.lirmm.fr
+  uiTheme: agroportal
+  uiUrl: http://localhost:3000
+  publicApiUrl: http://localhost:9393
+  supportEmail: support@example.org
+  fairnessDisabled: "true"
+
+redis:
+  mode: shared
+solr:
+  mode: single
+store:
+  engine: virtuoso
+fairness:
+  enabled: false
+matomo:
+  enabled: false
+patches:
+  matportalApiParentNormalization:
+    enabled: false
+  runtimeHotfixes:
+    enabled: false

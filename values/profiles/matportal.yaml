@@ -1,0 +1,78 @@
+profile:
+  name: matportal
+  matportal: true
+  description: "MatPortal profile: MatPortal images/branding, optional FAIR/Matomo/assistant hooks, and explicitly gated runtime patches."
+
+global:
+  namespace: matportal
+
+images:
+  api:
+    repository: agroportal/ontologies_api
+    tag: development
+  cron:
+    repository: agroportal/ncbo_cron
+    tag: development
+  ui:
+    repository: ghcr.io/matportal/bioportal_web_ui
+    tag: master
+  mgrep:
+    repository: ontoportal/mgrep-ncbo
+    tag: "0.1"
+
+api:
+  publicUrl: https://data.matportal.org
+  restUrlPrefix: https://data.matportal.org
+  enableSlices: "true"
+
+ui:
+  siteName: MatPortal
+  orgName: MatPortal
+  orgUrl: https://matportal.org
+  uiTheme: matportal
+  uiUrl: https://matportal.org
+  publicApiUrl: https://data.matportal.org
+  supportEmail: matolab.mail@gmail.com
+  fairnessDisabled: "false"
+  useLegacyBiomixer: "false"
+  publicSparqlUrl: https://matportal.org/sparql_proxy
+  extraEnv:
+    MATPORTAL_LIVE_SUMMARY_METRICS_ENABLED: "false"
+
+redis:
+  mode: shared
+solr:
+  mode: single
+mgrep:
+  service:
+    port: 55555
+  containerPort: 55555
+  dictionaryPath: /data/mgrep/dictionary.txt
+  command: >-
+    mkdir -p /data/mgrep;
+    [ -s /data/mgrep/dictionary.txt ] || printf '0\tDUMMY\n' > /data/mgrep/dictionary.txt;
+    mgrep --port 55555 -f /data/mgrep/dictionary.txt -w /srv/mgrep/word_divider.txt -c /srv/mgrep/CaseFolding.txt && tail -f /dev/null
+
+store:
+  engine: virtuoso
+  kbName: ontologies_api
+
+fairness:
+  enabled: true
+  publicUrl: https://matportal.org/fairness-assessment/
+
+matomo:
+  enabled: false
+  siteId: "1"
+  url: ""
+
+assistant:
+  enabled: false
+ontopanel:
+  enabled: false
+
+patches:
+  matportalApiParentNormalization:
+    enabled: true
+  runtimeHotfixes:
+    enabled: false

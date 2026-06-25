@@ -1,0 +1,81 @@
+# OntoPortal chart overlay that uses KEDA ScaledObjects instead of native HPA.
+# It assumes the KEDA operator/CRDs are already installed, for example through
+# Terraform enable_keda=true or a separate kedacore/keda Helm release.
+
+persistence:
+  shared:
+    # API and UI mount shared /data. Scaling either component beyond one replica
+    # requires a storage class that supports multi-writer access.
+    accessModes: ["ReadWriteMany"]
+
+api:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+ui:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  resources:
+    requests:
+      cpu: 300m
+      memory: 768Mi
+    limits:
+      memory: 1536Mi
+
+podDisruptionBudgets:
+  api:
+    enabled: true
+    minAvailable: 1
+  ui:
+    enabled: true
+    minAvailable: 1
+
+autoscaling:
+  api:
+    enabled: true
+    mode: keda
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      triggers:
+        - type: cron
+          metadata:
+            timezone: Europe/Berlin
+            start: "0 7 * * 1-5"
+            end: "0 20 * * 1-5"
+            desiredReplicas: "2"
+  ui:
+    enabled: true
+    mode: keda
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+    keda:
+      pollingInterval: 30
+      cooldownPeriod: 300
+      triggers:
+        - type: cron
+          metadata:
+            timezone: Europe/Berlin
+            start: "0 7 * * 1-5"
+            end: "0 20 * * 1-5"
+            desiredReplicas: "2"

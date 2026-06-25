@@ -1,0 +1,7 @@
+# Optional AWS EFS example for API/UI horizontal scaling.
+# Apply only after installing and testing the EFS CSI driver and creating an RWX
+# StorageClass named efs-sc, or replace this name with your site's class.
+persistence:
+  shared:
+    storageClassName: efs-sc
+    accessModes: ["ReadWriteMany"]

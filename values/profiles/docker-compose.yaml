@@ -1,0 +1,9 @@
+ingress:
+  enabled: false
+api:
+  publicUrl: http://localhost:9393
+  restUrlPrefix: http://localhost:9393
+ui:
+  uiUrl: http://localhost:3000
+  publicApiUrl: http://localhost:9393
+  forceSsl: "false"

@@ -1,0 +1,25 @@
+apiVersion: deployment.ontoportal.org/v1alpha1
+kind: Environment
+metadata:
+  name: agroportal-aws-eks
+spec:
+  profile: agroportal-clean
+  distribution: agroportal
+  runtime: kubernetes
+  provider: aws-eks
+  valuesFiles:
+    - values/profiles/agroportal-clean.yaml
+    - values/profiles/production-recommended.yaml
+    - values/cloud/aws-eks.yaml
+  imageBuildValuesFiles:
+    - values/image-builds/agroportal-source.yaml
+  terraform:
+    enabled: true
+    namespace: agroportal
+    release_name: agroportal
+    create_namespace: true
+    enable_cert_manager: true
+    enable_external_secrets: true
+    enable_monitoring: true
+    enable_keda: false
+    enable_vpa: false

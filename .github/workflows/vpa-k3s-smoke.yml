@@ -1,0 +1,106 @@
+name: vpa-k3s-smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vpa-k3s-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vpa:
+    name: OntoPortal VPA smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: pip install pyyaml
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+      - name: Install local k3s test runner
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.8.3 bash
+          k3d version
+          kubectl version --client=true
+          helm version
+      - name: Create disposable k3s cluster
+        run: |
+          k3d cluster create ontoportal-vpa-live \
+            --agents 0 \
+            --timeout 300s \
+            --wait
+          kubectl get nodes -o wide
+          kubectl get storageclass
+      - name: Install Vertical Pod Autoscaler operator
+        run: |
+          helm repo add fairwinds-stable https://charts.fairwinds.com/stable
+          helm repo update
+          kubectl create namespace vpa
+          helm upgrade --install vpa fairwinds-stable/vpa \
+            --namespace vpa \
+            --version 4.12.2 \
+            -f values/addons/vpa-operator.yaml \
+            --timeout 10m
+          kubectl -n vpa wait --for=condition=Available deployment --all --timeout=10m
+          kubectl -n vpa get all -o wide
+      - name: Create namespace and existing Secret
+        run: |
+          kubectl create namespace ontoportal
+          kubectl -n ontoportal create secret generic ontoportal-secrets \
+            --from-literal=apiKey="$(openssl rand -base64 36)" \
+            --from-literal=adminPassword="$(openssl rand -base64 24)" \
+            --from-literal=mysqlRootPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDbaPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDavPassword="$(openssl rand -base64 24)"
+      - name: Install clean OntoPortal with VPA recommendations overlay
+        run: |
+          helm upgrade --install ontoportal chart/ontoportal \
+            --namespace ontoportal \
+            -f values/profiles/ontoportal-clean.yaml \
+            -f values/profiles/k3s-local.yaml \
+            -f values/profiles/k3s-ci.yaml \
+            -f values/addons/vpa-recommendations.yaml \
+            --set global.createNamespace=false \
+            --set secrets.create=false \
+            --set secrets.existingSecret=ontoportal-secrets \
+            --timeout 25m
+      - name: Wait for rollout
+        run: |
+          for deploy in $(kubectl -n ontoportal get deploy -o name); do
+            kubectl -n ontoportal rollout status "$deploy" --timeout=20m
+          done
+          kubectl -n ontoportal get pods,pvc,svc,vpa -o wide
+      - name: Run deep smoke test
+        env:
+          SMOKE_DEEP: "true"
+          FAIL_ON_RESTARTS: "true"
+          MAX_RESTARTS: "3"
+          ROLLOUT_TIMEOUT: "15m"
+        run: ./scripts/smoke.sh ontoportal ontoportal
+      - name: Validate VPA resources
+        run: ./scripts/vpa-check.sh ontoportal ontoportal "api ui cron redis-persistent redis-goo-cache redis-http-cache solr-term solr-prop mgrep store mysql cache"
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n vpa get all -o wide || true
+          kubectl -n vpa logs deploy/vpa-recommender --all-containers --tail=200 || true
+          kubectl -n vpa logs deploy/vpa-updater --all-containers --tail=200 || true
+          kubectl -n ontoportal get all,pvc,vpa,events -o wide || true
+          kubectl -n ontoportal describe vpa || true
+          kubectl -n ontoportal describe pods || true
+          for component in api ui cron store solr-term solr-prop redis-persistent mgrep mysql cache; do
+            echo "===== logs: ${component} ====="
+            kubectl -n ontoportal logs deploy/ontoportal-${component} --all-containers --tail=200 || true
+          done
+          docker ps -a || true
+          docker logs k3d-ontoportal-vpa-live-server-0 --tail=200 || true
+      - name: Delete disposable k3s cluster
+        if: always()
+        run: k3d cluster delete ontoportal-vpa-live || true

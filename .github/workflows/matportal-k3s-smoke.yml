@@ -1,0 +1,122 @@
+name: matportal-k3s-smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: matportal-k3s-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matportal:
+    name: MatPortal k3s smoke with add-ons
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free runner disk for image-heavy smoke
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          docker system prune -af || true
+          df -h
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install Python dependencies
+        run: pip install pyyaml
+      - name: Install Playwright dependencies
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+      - name: Install local k3s test runner
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.8.3 bash
+          k3d version
+          kubectl version --client=true
+          helm version
+      - name: Create disposable k3s cluster
+        run: |
+          k3d cluster create matportal-live \
+            --agents 0 \
+            --timeout 300s \
+            --wait \
+            --k3s-arg '--kubelet-arg=feature-gates=KubeletInUserNamespace=true@server:*'
+          kubectl get nodes -o wide
+          kubectl get storageclass
+      - name: Create namespace and existing Secret
+        run: |
+          kubectl create namespace matportal
+          kubectl -n matportal create secret generic matportal-secrets \
+            --from-literal=apiKey="$(openssl rand -base64 36)" \
+            --from-literal=adminPassword="$(openssl rand -base64 24)" \
+            --from-literal=mysqlRootPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDbaPassword="$(openssl rand -base64 24)" \
+            --from-literal=storeDavPassword="$(openssl rand -base64 24)" \
+            --from-literal=matomoDbPassword="$(openssl rand -base64 24)" \
+            --from-literal=matomoDbRootPassword="$(openssl rand -base64 24)"
+      - name: Install MatPortal with Matomo and FAIRness
+        run: |
+          helm upgrade --install matportal chart/ontoportal \
+            --namespace matportal \
+            -f values/profiles/matportal.yaml \
+            -f values/profiles/k3s-local.yaml \
+            -f values/profiles/k3s-ci.yaml \
+            -f values/addons/fairness.yaml \
+            -f values/addons/matomo.yaml \
+            -f values/profiles/matportal-k3s-ci.yaml \
+            --set global.createNamespace=false \
+            --set secrets.create=false \
+            --set secrets.existingSecret=matportal-secrets \
+            --timeout 25m
+      - name: Wait for rollout
+        run: |
+          for deploy in $(kubectl -n matportal get deploy -o name); do
+            kubectl -n matportal rollout status "$deploy" --timeout=20m
+          done
+          kubectl -n matportal get pods,pvc,svc -o wide
+      - name: Run deep smoke test
+        env:
+          SMOKE_DEEP: "true"
+          FAIL_ON_RESTARTS: "true"
+          MAX_RESTARTS: "5"
+          ROLLOUT_TIMEOUT: "15m"
+          MGREP_REMOTE_PORT: "55556"
+          HTTP_RETRIES: "10"
+        run: ./scripts/smoke.sh matportal matportal
+      - name: Run browser UI smoke tests
+        run: ./scripts/ui-e2e.sh matportal matportal
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n matportal get all,pvc,ingress -o wide || true
+          kubectl -n matportal get events --sort-by=.lastTimestamp | tail -150 || true
+          kubectl -n matportal describe pods || true
+          for component in api ui cron store solr redis-persistent mgrep mysql cache fairness matomo matomo-db; do
+            echo "===== logs: ${component} ====="
+            kubectl -n matportal logs deploy/matportal-${component} --all-containers --tail=200 || true
+          done
+          docker ps -a || true
+          docker logs k3d-matportal-live-server-0 --tail=200 || true
+          cat /tmp/ontoportal-ui-port-forward.log 2>/dev/null || true
+          cat /tmp/ontoportal-api-port-forward.log 2>/dev/null || true
+      - name: Delete disposable k3s cluster
+        if: always()
+        run: k3d cluster delete matportal-live || true

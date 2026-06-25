@@ -1,0 +1,140 @@
+{{- define "ontoportal.vpa" -}}
+{{- $root := index . "root" -}}
+{{- $logicalName := index . "logicalName" -}}
+{{- $targetSuffix := index . "targetSuffix" -}}
+{{- $containerName := index . "containerName" -}}
+{{- $cfg := index . "cfg" | default dict -}}
+{{- $updateMode := default "Off" $cfg.updateMode -}}
+{{- $validUpdateModes := list "Off" "Initial" "Recreate" "InPlaceOrRecreate" "InPlace" "Auto" -}}
+{{- if not (has $updateMode $validUpdateModes) -}}
+{{- fail (printf "verticalPodAutoscaling.%s.updateMode must be one of: Off, Initial, Recreate, InPlaceOrRecreate, InPlace, Auto" $logicalName) -}}
+{{- end -}}
+{{- $controlledValues := default "RequestsOnly" $cfg.controlledValues -}}
+{{- if not (has $controlledValues (list "RequestsOnly" "RequestsAndLimits")) -}}
+{{- fail (printf "verticalPodAutoscaling.%s.controlledValues must be RequestsOnly or RequestsAndLimits" $logicalName) -}}
+{{- end -}}
+{{- $controlledResources := default (list "cpu" "memory") $cfg.controlledResources -}}
+{{- if empty $controlledResources -}}
+{{- fail (printf "verticalPodAutoscaling.%s.controlledResources must include at least one resource" $logicalName) -}}
+{{- end -}}
+{{- $horizontal := index $root.Values.autoscaling $logicalName | default dict -}}
+{{- $horizontalMode := default "hpa" $horizontal.mode -}}
+{{- $horizontalUsesResourceMetrics := and $horizontal.enabled (or $horizontal.targetCPUUtilizationPercentage $horizontal.targetMemoryUtilizationPercentage) -}}
+{{- if and $horizontalUsesResourceMetrics (ne $updateMode "Off") -}}
+{{- fail (printf "verticalPodAutoscaling.%s.updateMode=%s cannot be combined with CPU/memory based %s autoscaling; use VPA Off for recommendations, or use non-resource horizontal metrics" $logicalName $updateMode $horizontalMode) -}}
+{{- end -}}
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "ontoportal.fullname" $root }}-{{ $targetSuffix }}
+  namespace: {{ include "ontoportal.namespace" $root }}
+  labels:
+    app.kubernetes.io/component: {{ $targetSuffix | quote }}
+    ontoportal.org/autoscaling-kind: vertical
+    {{- include "ontoportal.labels" $root | nindent 4 }}
+  {{- $annotations := merge (dict) ($root.Values.global.annotations | default dict) ($cfg.annotations | default dict) }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ontoportal.fullname" $root }}-{{ $targetSuffix }}
+  updatePolicy:
+    updateMode: {{ $updateMode | quote }}
+    {{- with $cfg.minReplicas }}
+    minReplicas: {{ . }}
+    {{- end }}
+  resourcePolicy:
+    containerPolicies:
+      {{- with $cfg.containerPolicies }}
+{{ toYaml . | nindent 6 }}
+      {{- else }}
+      - containerName: {{ default $containerName $cfg.containerName | quote }}
+        mode: {{ default "Auto" $cfg.mode | quote }}
+        controlledResources:
+          {{- toYaml $controlledResources | nindent 10 }}
+        controlledValues: {{ $controlledValues | quote }}
+        {{- with $cfg.minAllowed }}
+        minAllowed:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $cfg.maxAllowed }}
+        maxAllowed:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+---
+{{- end -}}
+
+{{- $root := . -}}
+{{- $apiVpa := index .Values.verticalPodAutoscaling "api" | default dict -}}
+{{- if and .Values.api.enabled $apiVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "api" "targetSuffix" "api" "containerName" "api" "cfg" $apiVpa) }}
+{{- end }}
+{{- $cronVpa := index .Values.verticalPodAutoscaling "cron" | default dict -}}
+{{- if and .Values.cron.enabled $cronVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "cron" "targetSuffix" "cron" "containerName" "cron" "cfg" $cronVpa) }}
+{{- end }}
+{{- $uiVpa := index .Values.verticalPodAutoscaling "ui" | default dict -}}
+{{- if and .Values.ui.enabled $uiVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "ui" "targetSuffix" "ui" "containerName" "ui" "cfg" $uiVpa) }}
+{{- end }}
+{{- $redisVpa := index .Values.verticalPodAutoscaling "redis" | default dict -}}
+{{- if and .Values.redis.enabled $redisVpa.enabled }}
+{{- $redisTargets := list "redis" -}}
+{{- if eq (.Values.redis.mode | default "shared") "split" -}}
+{{- $redisTargets = list "redis-persistent" "redis-goo-cache" "redis-http-cache" -}}
+{{- end -}}
+{{- range $target := $redisTargets }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "redis" "targetSuffix" $target "containerName" "redis" "cfg" $redisVpa) }}
+{{- end }}
+{{- end }}
+{{- $solrVpa := index .Values.verticalPodAutoscaling "solr" | default dict -}}
+{{- if and .Values.solr.enabled $solrVpa.enabled }}
+{{- $solrTargets := list "solr" -}}
+{{- if eq (.Values.solr.mode | default "single") "split" -}}
+{{- $solrTargets = list "solr-term" "solr-prop" -}}
+{{- end -}}
+{{- range $target := $solrTargets }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "solr" "targetSuffix" $target "containerName" "solr" "cfg" $solrVpa) }}
+{{- end }}
+{{- end }}
+{{- $mgrepVpa := index .Values.verticalPodAutoscaling "mgrep" | default dict -}}
+{{- if and .Values.mgrep.enabled $mgrepVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "mgrep" "targetSuffix" "mgrep" "containerName" "mgrep" "cfg" $mgrepVpa) }}
+{{- end }}
+{{- $storeVpa := index .Values.verticalPodAutoscaling "store" | default dict -}}
+{{- if and .Values.store.enabled (ne .Values.store.engine "external") $storeVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "store" "targetSuffix" "store" "containerName" "store" "cfg" $storeVpa) }}
+{{- end }}
+{{- $mysqlVpa := index .Values.verticalPodAutoscaling "mysql" | default dict -}}
+{{- if and .Values.mysql.enabled $mysqlVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "mysql" "targetSuffix" "mysql" "containerName" "mysql" "cfg" $mysqlVpa) }}
+{{- end }}
+{{- $memcachedVpa := index .Values.verticalPodAutoscaling "memcached" | default dict -}}
+{{- if and .Values.memcached.enabled $memcachedVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "memcached" "targetSuffix" "cache" "containerName" "memcached" "cfg" $memcachedVpa) }}
+{{- end }}
+{{- $fairnessVpa := index .Values.verticalPodAutoscaling "fairness" | default dict -}}
+{{- if and .Values.fairness.enabled $fairnessVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "fairness" "targetSuffix" "fairness" "containerName" "fairness" "cfg" $fairnessVpa) }}
+{{- end }}
+{{- $matomoVpa := index .Values.verticalPodAutoscaling "matomo" | default dict -}}
+{{- if and .Values.matomo.enabled $matomoVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "matomo" "targetSuffix" "matomo" "containerName" "matomo" "cfg" $matomoVpa) }}
+{{- end }}
+{{- $matomoDbVpa := index .Values.verticalPodAutoscaling "matomoDb" | default dict -}}
+{{- if and .Values.matomo.enabled $matomoDbVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "matomoDb" "targetSuffix" "matomo-db" "containerName" "mariadb" "cfg" $matomoDbVpa) }}
+{{- end }}
+{{- $assistantVpa := index .Values.verticalPodAutoscaling "assistant" | default dict -}}
+{{- if and .Values.assistant.enabled $assistantVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "assistant" "targetSuffix" "assistant" "containerName" "assistant" "cfg" $assistantVpa) }}
+{{- end }}
+{{- $ontopanelVpa := index .Values.verticalPodAutoscaling "ontopanel" | default dict -}}
+{{- if and .Values.ontopanel.enabled $ontopanelVpa.enabled }}
+{{ include "ontoportal.vpa" (dict "root" $root "logicalName" "ontopanel" "targetSuffix" "ontopanel" "containerName" "ontopanel" "cfg" $ontopanelVpa) }}
+{{- end }}

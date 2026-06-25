@@ -1,0 +1,153 @@
+# Production-oriented overlay. Combine with one main profile and a site-specific file:
+#   -f values/profiles/ontoportal-clean.yaml -f values/profiles/production-recommended.yaml -f values/sites/<site>.yaml
+# This overlay intentionally does NOT enable HPA, KEDA, VPA, or multiple replicas because
+# those choices depend on cluster CRDs/controllers, metrics availability, workload history, and storage design.
+# Move API/UI shared data to RWX or external services before enabling horizontal scaling beyond one replica.
+# Start VPA with the recommendation-only overlay before allowing it to mutate pods.
+
+global:
+  storageClassName: ""
+  ingressClassName: traefik
+
+images:
+  # Replace all latest/development tags in your site-specific values before production.
+  # Keep this overlay tag-neutral so it can be used by OntoPortal, AgroPortal, and MatPortal.
+  api:
+    pullPolicy: IfNotPresent
+  cron:
+    pullPolicy: IfNotPresent
+  ui:
+    pullPolicy: IfNotPresent
+
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+cron:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+ui:
+  replicas: 1
+  forceSsl: "true"
+  resources:
+    requests:
+      cpu: 300m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+redis:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+solr:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+mgrep:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+store:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+mysql:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+memcached:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+fairness:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+matomo:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+assistant:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+ontopanel:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+ingress:
+  tls:
+    enabled: true
+    secretName: ontoportal-tls
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+
+networkPolicy:
+  enabled: false
+  # Enable only after confirming the cluster has a NetworkPolicy provider such as
+  # Cilium, Calico, or kube-router and after testing Traefik/nginx ingress reachability.
+  allowSameNamespace: true
+  allowIngressController: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: kube-system
+  allowAllEgress: true
+
+podDisruptionBudgets:
+  api:
+    enabled: false
+  ui:
+    enabled: false

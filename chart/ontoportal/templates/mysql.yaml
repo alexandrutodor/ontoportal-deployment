@@ -1,0 +1,78 @@
+{{- if .Values.mysql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-mysql
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: mysql
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql
+  selector:
+    app.kubernetes.io/component: mysql
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-mysql
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: mysql
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mysql
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: mysql
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list .Values.mysql .) | nindent 6 }}
+      containers:
+        - name: mysql
+          image: {{ include "ontoportal.image" .Values.images.mysql | quote }}
+          imagePullPolicy: {{ .Values.images.mysql.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ontoportal.secretName" . }}
+                  key: mysqlRootPassword
+            - name: MYSQL_DATABASE
+              value: {{ .Values.mysql.database | quote }}
+          ports:
+            - name: mysql
+              containerPort: 3306
+          readinessProbe:
+            exec:
+              command: ["sh", "-lc", "mysqladmin ping -h 127.0.0.1 -uroot -p\"${MYSQL_ROOT_PASSWORD}\" --silent"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          {{- with .Values.mysql.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-data
+          {{- include "ontoportal.volumeDataSource" (list . .Values.persistence.mysql.existingClaim (printf "%s-mysql-data" (include "ontoportal.fullname" .))) | nindent 10 }}
+{{- end }}

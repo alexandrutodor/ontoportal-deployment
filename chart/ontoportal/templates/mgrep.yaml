@@ -1,0 +1,67 @@
+{{- if .Values.mgrep.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-mgrep
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: mgrep
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  ports:
+    - name: mgrep
+      port: {{ .Values.mgrep.service.port }}
+      targetPort: mgrep
+  selector:
+    app.kubernetes.io/component: mgrep
+    {{- include "ontoportal.selectorLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-mgrep
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    app.kubernetes.io/component: mgrep
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mgrep
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: mgrep
+        {{- include "ontoportal.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ontoportal.fullname" . }}
+      {{- include "ontoportal.podSecurityContext" . | nindent 6 }}
+      {{- include "ontoportal.componentScheduling" (list .Values.mgrep .) | nindent 6 }}
+      containers:
+        - name: mgrep
+          image: {{ include "ontoportal.image" .Values.images.mgrep | quote }}
+          imagePullPolicy: {{ .Values.images.mgrep.pullPolicy }}
+          {{- include "ontoportal.containerSecurityContext" . | nindent 10 }}
+          ports:
+            - name: mgrep
+              containerPort: {{ .Values.mgrep.containerPort }}
+          {{- if .Values.mgrep.command }}
+          command: ["/bin/sh", "-lc"]
+          args:
+            - {{ .Values.mgrep.command | quote }}
+          {{- end }}
+          {{- with .Values.mgrep.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
+      volumes:
+        - name: shared-data
+          {{- include "ontoportal.volumeDataSource" (list . .Values.persistence.shared.existingClaim (printf "%s-shared-data" (include "ontoportal.fullname" .))) | nindent 10 }}
+{{- end }}

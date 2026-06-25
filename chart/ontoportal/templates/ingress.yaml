@@ -1,0 +1,106 @@
+{{- if .Values.ingress.enabled }}
+{{- if not (or .Values.ui.enabled .Values.api.enabled .Values.fairness.enabled .Values.assistant.enabled .Values.matomo.enabled) }}
+{{- fail "ingress.enabled=true requires at least one ingress-routed component: ui, api, fairness, assistant, or matomo" }}
+{{- end }}
+{{- $full := include "ontoportal.fullname" . -}}
+{{- $ns := include "ontoportal.namespace" . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $full }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- $annotations := merge (dict) (.Values.global.annotations | default dict) (.Values.ingress.annotations | default dict) }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.useClassNameField }}
+  {{- $className := .Values.ingress.className | default .Values.global.ingressClassName }}
+  {{- if $className }}
+  ingressClassName: {{ $className | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - secretName: {{ .Values.ingress.tls.secretName | quote }}
+      hosts:
+        {{- if or .Values.ui.enabled (and .Values.api.enabled (not .Values.ingress.hosts.api)) .Values.fairness.enabled .Values.assistant.enabled }}
+        - {{ .Values.ingress.hosts.ui | quote }}
+        {{- end }}
+        {{- if and .Values.api.enabled .Values.ingress.hosts.api }}
+        - {{ .Values.ingress.hosts.api | quote }}
+        {{- end }}
+        {{- if and .Values.matomo.enabled .Values.ingress.hosts.matomo }}
+        - {{ .Values.ingress.hosts.matomo | quote }}
+        {{- end }}
+  {{- end }}
+  rules:
+    {{- if or .Values.ui.enabled (and .Values.api.enabled (not .Values.ingress.hosts.api)) .Values.fairness.enabled .Values.assistant.enabled }}
+    - host: {{ .Values.ingress.hosts.ui | quote }}
+      http:
+        paths:
+          {{- if .Values.ui.enabled }}
+          - path: {{ .Values.ingress.paths.ui | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-ui
+                port:
+                  number: {{ .Values.ui.service.port }}
+          {{- end }}
+          {{- if and .Values.api.enabled (not .Values.ingress.hosts.api) }}
+          - path: {{ .Values.ingress.paths.api | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-api
+                port:
+                  number: {{ .Values.api.service.port }}
+          {{- end }}
+          {{- if .Values.fairness.enabled }}
+          - path: {{ .Values.ingress.paths.fairness | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-fairness
+                port:
+                  number: {{ .Values.fairness.service.port }}
+          {{- end }}
+          {{- if .Values.assistant.enabled }}
+          - path: {{ .Values.ingress.paths.assistantStream | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-assistant
+                port:
+                  number: {{ .Values.assistant.service.port }}
+          {{- end }}
+    {{- end }}
+    {{- if and .Values.api.enabled .Values.ingress.hosts.api }}
+    - host: {{ .Values.ingress.hosts.api | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.paths.apiRoot | quote }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-api
+                port:
+                  number: {{ .Values.api.service.port }}
+    {{- end }}
+    {{- if and .Values.matomo.enabled .Values.ingress.hosts.matomo }}
+    - host: {{ .Values.ingress.hosts.matomo | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $full }}-matomo
+                port:
+                  number: {{ .Values.matomo.service.port }}
+    {{- end }}
+{{- end }}

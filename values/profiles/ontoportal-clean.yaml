@@ -1,0 +1,61 @@
+profile:
+  name: ontoportal-clean
+  matportal: false
+  description: "Clean upstream-compatible OntoPortal deployment. No MatPortal runtime patches, no analytics, no assistant."
+
+global:
+  namespace: ontoportal
+
+images:
+  api:
+    repository: bioportal/ontologies_api
+    tag: latest
+  cron:
+    repository: bioportal/ncbo_cron
+    tag: v6.7.1
+  ui:
+    repository: agroportal/ontoportal_web_ui
+    tag: development
+  mgrep:
+    repository: ontoportal/mgrep
+    tag: "0.0.2"
+
+api:
+  publicUrl: http://localhost:9393
+  restUrlPrefix: http://localhost:9393
+  enableSlices: "false"
+
+ui:
+  siteName: OntoPortal
+  orgName: OntoPortal
+  orgUrl: https://ontoportal.org
+  uiTheme: ontoportal
+  uiUrl: http://localhost:3000
+  publicApiUrl: http://localhost:9393
+  supportEmail: support@example.org
+  fairnessDisabled: "true"
+  useLegacyBiomixer: "true"
+
+redis:
+  mode: split
+
+solr:
+  mode: split
+
+store:
+  engine: virtuoso
+  kbName: ontoportal_kb
+
+fairness:
+  enabled: false
+matomo:
+  enabled: false
+assistant:
+  enabled: false
+ontopanel:
+  enabled: false
+patches:
+  matportalApiParentNormalization:
+    enabled: false
+  runtimeHotfixes:
+    enabled: false

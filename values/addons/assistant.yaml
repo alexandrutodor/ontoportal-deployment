@@ -1,0 +1,5 @@
+assistant:
+  enabled: true
+ui:
+  extraEnv:
+    MATPORTAL_ASSISTANT_ENABLED: "true"

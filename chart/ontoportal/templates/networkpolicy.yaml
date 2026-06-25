@@ -1,0 +1,51 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ontoportal.fullname" . }}-default
+  namespace: {{ include "ontoportal.namespace" . }}
+  labels:
+    {{- include "ontoportal.labels" . | nindent 4 }}
+  {{- include "ontoportal.annotations" . | nindent 2 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ontoportal.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  {{- if or .Values.networkPolicy.allowSameNamespace .Values.networkPolicy.allowIngressController .Values.networkPolicy.extraIngress }}
+  ingress:
+    {{- if .Values.networkPolicy.allowSameNamespace }}
+    - from:
+        - podSelector: {}
+    {{- end }}
+    {{- if .Values.networkPolicy.allowIngressController }}
+    - from:
+        - namespaceSelector:
+            {{- if .Values.networkPolicy.ingressNamespaceSelector }}
+            {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 12 }}
+            {{- else }}
+            {}
+            {{- end }}
+          {{- if .Values.networkPolicy.ingressPodSelector }}
+          podSelector:
+            {{- toYaml .Values.networkPolicy.ingressPodSelector | nindent 12 }}
+          {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- else }}
+  ingress: []
+  {{- end }}
+  {{- if .Values.networkPolicy.allowAllEgress }}
+  egress:
+    - {}
+  {{- else if .Values.networkPolicy.extraEgress }}
+  egress:
+    {{- toYaml .Values.networkPolicy.extraEgress | nindent 4 }}
+  {{- else }}
+  egress: []
+  {{- end }}
+{{- end }}

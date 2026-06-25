@@ -1,0 +1,25 @@
+apiVersion: deployment.ontoportal.org/v1alpha1
+kind: Environment
+metadata:
+  name: ontoportal-gcp-gke
+spec:
+  profile: ontoportal-clean
+  distribution: ontoportal
+  runtime: kubernetes
+  provider: gcp-gke
+  valuesFiles:
+    - values/profiles/ontoportal-clean.yaml
+    - values/profiles/production-recommended.yaml
+    - values/cloud/gcp-gke.yaml
+  imageBuildValuesFiles:
+    - values/image-builds/ontoportal-source.yaml
+  terraform:
+    enabled: true
+    namespace: ontoportal
+    release_name: ontoportal
+    create_namespace: true
+    enable_cert_manager: true
+    enable_external_secrets: true
+    enable_monitoring: true
+    enable_keda: false
+    enable_vpa: false

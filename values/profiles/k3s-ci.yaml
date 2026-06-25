@@ -1,0 +1,27 @@
+# CI-only overlay for disposable k3s smoke tests.
+# Keep this small and non-production: it exists to exercise real Kubernetes
+# scheduling/startup/probes without allocating production-sized local-path PVCs.
+
+global:
+  createNamespace: false
+  storageClassName: local-path
+  ingressClassName: traefik
+
+persistence:
+  shared:
+    size: 5Gi
+  solr:
+    size: 2Gi
+  store:
+    size: 5Gi
+  mysql:
+    size: 2Gi
+  matomo:
+    app:
+      size: 1Gi
+    db:
+      size: 1Gi
+
+monitoring:
+  serviceMonitor:
+    enabled: false

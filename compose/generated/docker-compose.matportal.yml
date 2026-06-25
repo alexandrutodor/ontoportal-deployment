@@ -1,0 +1,406 @@
+name: matportal
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    volumes:
+    - ${DATA_DIR:-./data}/redis:/data
+  solr:
+    image: solr:9.1
+    restart: unless-stopped
+    environment:
+      SOLR_HEAP: ${SOLR_HEAP:-1g}
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - solr status >/dev/null 2>&1 || /opt/solr/bin/solr status >/dev/null 2>&1
+      interval: 20s
+      timeout: 5s
+      retries: 30
+    ports:
+    - 127.0.0.1:${SOLR_PORT:-8983}:8983
+    volumes:
+    - ${DATA_DIR:-./data}/solr:/var/solr
+    command:
+    - bash
+    - -lc
+    - 'solr start -p 8983
+
+      solr create_core -c term_search_core1 || true
+
+      solr create_core -c prop_search_core1 || true
+
+      solr stop -p 8983
+
+      exec solr start -f -p 8983'
+  virtuoso:
+    image: tenforce/virtuoso:virtuoso7.2.5
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${VIRTUOSO_PORT:-8890}:8890
+    environment:
+      DBA_PASSWORD: ${STORE_DBA_PASSWORD:-change-me}
+    volumes:
+    - ${DATA_DIR:-./data}/virtuoso:/data
+  mgrep:
+    image: ontoportal/mgrep-ncbo:0.1
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${MGREP_PORT:-55555}:55555
+    command: mkdir -p /data/mgrep; [ -s /data/mgrep/dictionary.txt ] || printf '0\tDUMMY\n'
+      > /data/mgrep/dictionary.txt; mgrep --port 55555 -f /data/mgrep/dictionary.txt
+      -w /srv/mgrep/word_divider.txt -c /srv/mgrep/CaseFolding.txt && tail -f /dev/null
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: bioportal_ui_production
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+    ports:
+    - 127.0.0.1:${MYSQL_PORT:-3306}:3306
+    volumes:
+    - ${DATA_DIR:-./data}/mysql:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -p$${MYSQL_ROOT_PASSWORD:-change-me} --silent
+      interval: 20s
+      timeout: 5s
+      retries: 30
+  memcached:
+    image: memcached:latest
+    restart: unless-stopped
+    command:
+    - memcached
+    - -m
+    - '1024'
+  api:
+    image: agroportal/ontologies_api:development
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_started
+      virtuoso:
+        condition: service_started
+      mgrep:
+        condition: service_started
+      solr:
+        condition: service_healthy
+    ports:
+    - ${API_BIND:-0.0.0.0}:${API_PORT:-9393}:9393
+    environment:
+      RACK_ENV: compose
+      RAILS_ENV: compose
+      BUNDLE_PATH: /data/bundle/api
+      OP_APIKEY: ${ONTOPORTAL_API_KEY:-change-me}
+      API_KEY: ${ONTOPORTAL_API_KEY:-change-me}
+      STORE_KB: ontologies_api
+      GOO_BACKEND_NAME: virtuoso
+      GOO_HOST: virtuoso
+      GOO_PORT: '8890'
+      GOO_PATH_DATA: /sparql/
+      GOO_PATH_QUERY: /sparql/
+      GOO_PATH_UPDATE: /sparql/
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PERSISTENT_HOST: redis
+      REDIS_GOO_CACHE_HOST: redis
+      REDIS_HTTP_CACHE_HOST: redis
+      SOLR_TERM_SEARCH_URL: http://solr:8983/solr/term_search_core1
+      SOLR_PROP_SEARCH_URL: http://solr:8983/solr/prop_search_core1
+      MGREP_HOST: mgrep
+      MGREP_PORT: '55555'
+      MGREP_DICT_PATH: /data/mgrep/dictionary.txt
+      MGREP_DICTIONARY_FILE: /data/mgrep/dictionary.txt
+      REPOSITORY_FOLDER: /data/repository
+      REPORT_PATH: /data/reports/ontologies_report.json
+      REST_URL_PREFIX: http://localhost:9393
+      PUBLIC_API_URL: http://localhost:9393
+      ENABLE_SLICES: 'true'
+    volumes:
+    - ${DATA_DIR:-./data}:/data
+    working_dir: /srv/ontoportal/ontologies_api
+    command:
+    - bash
+    - -lc
+    - "mkdir -p /data/repository /data/reports /data/mgrep /data/api/log /data/api/tmp/pids\
+      \ /data/bundle/api /srv/ontoportal/data\nrm -rf log tmp || true\nln -snf /data/api/log\
+      \ log\nln -snf /data/api/tmp tmp\nln -snf /data/repository /srv/ontoportal/data/repository\n\
+      ln -snf /data/reports /srv/ontoportal/data/reports\nln -snf /data/mgrep /srv/ontoportal/data/mgrep\n\
+      mkdir -p config/environments\ncat > config/environments/compose.rb <<RUBY\n\
+      GOO_BACKEND_NAME = ENV.fetch(\"GOO_BACKEND_NAME\", \"virtuoso\")\nGOO_HOST =\
+      \ ENV.fetch(\"GOO_HOST\", \"localhost\")\nGOO_PATH_DATA = ENV.fetch(\"GOO_PATH_DATA\"\
+      , \"/sparql/\")\nGOO_PATH_QUERY = ENV.fetch(\"GOO_PATH_QUERY\", \"/sparql/\"\
+      )\nGOO_PATH_UPDATE = ENV.fetch(\"GOO_PATH_UPDATE\", \"/sparql/\")\nGOO_PORT\
+      \ = ENV.fetch(\"GOO_PORT\", 8890)\nMGREP_HOST = ENV.fetch(\"MGREP_HOST\", \"\
+      localhost\")\nMGREP_PORT = ENV.fetch(\"MGREP_PORT\", 55556)\nMGREP_DICT_PATH\
+      \ = ENV.fetch(\"MGREP_DICT_PATH\", \"/data/mgrep/dictionary.txt\")\nREDIS_GOO_CACHE_HOST\
+      \ = ENV.fetch(\"REDIS_GOO_CACHE_HOST\", \"localhost\")\nREDIS_HTTP_CACHE_HOST\
+      \ = ENV.fetch(\"REDIS_HTTP_CACHE_HOST\", \"localhost\")\nREDIS_PERSISTENT_HOST\
+      \ = ENV.fetch(\"REDIS_PERSISTENT_HOST\", \"localhost\")\nREDIS_PORT = ENV.fetch(\"\
+      REDIS_PORT\", 6379)\nREPORT_PATH = ENV.fetch(\"REPORT_PATH\", \"/data/reports/ontologies_report.json\"\
+      )\nREPOSITORY_FOLDER = ENV.fetch(\"REPOSITORY_FOLDER\", \"/data/repository\"\
+      )\nREST_URL_PREFIX = ENV.fetch(\"REST_URL_PREFIX\", \"http://localhost:9393\"\
+      )\nSOLR_PROP_SEARCH_URL = ENV.fetch(\"SOLR_PROP_SEARCH_URL\", \"http://localhost:8983/solr/prop_search_core1\"\
+      )\nSOLR_TERM_SEARCH_URL = ENV.fetch(\"SOLR_TERM_SEARCH_URL\", \"http://localhost:8983/solr/term_search_core1\"\
+      )\n\nif defined?(LinkedData)\n  LinkedData.config do |config|\n    config.goo_backend_name\
+      \ = GOO_BACKEND_NAME.to_s\n    config.goo_host = GOO_HOST.to_s\n    config.goo_port\
+      \ = GOO_PORT.to_i\n    config.goo_path_query = GOO_PATH_QUERY.to_s\n    config.goo_path_data\
+      \ = GOO_PATH_DATA.to_s\n    config.goo_path_update = GOO_PATH_UPDATE.to_s\n\
+      \    config.goo_redis_host = REDIS_GOO_CACHE_HOST.to_s\n    config.goo_redis_port\
+      \ = REDIS_PORT.to_i\n    config.http_redis_host = REDIS_HTTP_CACHE_HOST.to_s\n\
+      \    config.http_redis_port = REDIS_PORT.to_i\n    config.ontology_analytics_redis_host\
+      \ = REDIS_PERSISTENT_HOST.to_s\n    config.ontology_analytics_redis_port = REDIS_PORT.to_i\n\
+      \    config.repository_folder = REPOSITORY_FOLDER.to_s\n    config.search_server_url\
+      \ = SOLR_TERM_SEARCH_URL.to_s\n    config.property_search_server_url = SOLR_PROP_SEARCH_URL.to_s\n\
+      \    config.replace_url_prefix = true\n    config.rest_url_prefix = REST_URL_PREFIX.to_s\n\
+      \    config.enable_notifications = false\n  end\nend\n\nif defined?(Annotator)\n\
+      \  Annotator.config do |config|\n    config.annotator_redis_host = REDIS_PERSISTENT_HOST.to_s\n\
+      \    config.annotator_redis_port = REDIS_PORT.to_i\n    config.mgrep_host =\
+      \ MGREP_HOST.to_s\n    config.mgrep_port = MGREP_PORT.to_i\n    config.mgrep_dictionary_file\
+      \ = MGREP_DICT_PATH.to_s\n  end\nend\n\nif defined?(NcboCron)\n  NcboCron.config\
+      \ do |config|\n    config.redis_host = REDIS_PERSISTENT_HOST.to_s\n    config.redis_port\
+      \ = REDIS_PORT.to_i\n    config.ontology_report_path = REPORT_PATH\n    config.daemonize\
+      \ = false\n    config.search_index_all_url = ENV.fetch(\"SEARCH_INDEX_ALL_URL\"\
+      , SOLR_TERM_SEARCH_URL)\n    config.property_search_index_all_url = ENV.fetch(\"\
+      PROPERTY_SEARCH_INDEX_ALL_URL\", SOLR_PROP_SEARCH_URL)\n  end\nend\n\nif defined?(LinkedData::OntologiesAPI)\n\
+      \  LinkedData::OntologiesAPI.config do |config|\n    config.http_redis_host\
+      \ = REDIS_HTTP_CACHE_HOST.to_s\n    config.http_redis_port = REDIS_PORT.to_i\n\
+      \    config.ontology_report_path = REPORT_PATH\n    config.enable_req_timeout\
+      \ = false\n    config.enable_throttling = false\n  end\nend\n\nGoo.use_cache\
+      \ = true if defined?(Goo)\nRUBY\ngem install bundler -v 2.3.27 >/dev/null 2>&1\
+      \ || true\nbundle _2.3.27_ check || bundle _2.3.27_ install\nrm -f tmp/pids/*.pid\
+      \ || true\nexec bundle _2.3.27_ exec rackup -o 0.0.0.0 --port 9393"
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:9393/ >/dev/null || exit 1
+      interval: 20s
+      timeout: 5s
+      retries: 20
+  cron:
+    image: agroportal/ncbo_cron:development
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_started
+      virtuoso:
+        condition: service_started
+      mgrep:
+        condition: service_started
+      solr:
+        condition: service_healthy
+    environment:
+      RACK_ENV: compose
+      RAILS_ENV: compose
+      BUNDLE_PATH: /data/bundle/cron
+      OP_APIKEY: ${ONTOPORTAL_API_KEY:-change-me}
+      API_KEY: ${ONTOPORTAL_API_KEY:-change-me}
+      STORE_KB: ontologies_api
+      GOO_BACKEND_NAME: virtuoso
+      GOO_HOST: virtuoso
+      GOO_PORT: '8890'
+      GOO_PATH_DATA: /sparql/
+      GOO_PATH_QUERY: /sparql/
+      GOO_PATH_UPDATE: /sparql/
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PERSISTENT_HOST: redis
+      REDIS_GOO_CACHE_HOST: redis
+      REDIS_HTTP_CACHE_HOST: redis
+      SOLR_TERM_SEARCH_URL: http://solr:8983/solr/term_search_core1
+      SOLR_PROP_SEARCH_URL: http://solr:8983/solr/prop_search_core1
+      MGREP_HOST: mgrep
+      MGREP_PORT: '55555'
+      MGREP_DICT_PATH: /data/mgrep/dictionary.txt
+      MGREP_DICTIONARY_FILE: /data/mgrep/dictionary.txt
+      REPOSITORY_FOLDER: /data/repository
+      REPORT_PATH: /data/reports/ontologies_report.json
+      REST_URL_PREFIX: http://localhost:9393
+      PUBLIC_API_URL: http://localhost:9393
+      ENABLE_SLICES: 'true'
+      ADMIN_USERNAME: admin
+      ADMIN_EMAIL: admin@example.org
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+      STARTER_ONTOLOGY: STY
+      OP_API_URL: https://data.bioontology.org
+    volumes:
+    - ${DATA_DIR:-./data}:/data
+    working_dir: /srv/ontoportal/ncbo_cron
+    command:
+    - bash
+    - -lc
+    - "mkdir -p /data/repository /data/reports /data/mgrep /data/history /data/cron/logs\
+      \ /data/cron/tmp/pids /data/bundle/cron /srv/ontoportal/data\nrm -rf log logs\
+      \ tmp /usr/local/hist || true\nln -snf /data/cron/logs log\nln -snf /data/cron/logs\
+      \ logs\nln -snf /data/cron/tmp tmp\nln -snf /data/history /usr/local/hist\n\
+      ln -snf /data/repository /srv/ontoportal/data/repository\nln -snf /data/reports\
+      \ /srv/ontoportal/data/reports\nln -snf /data/mgrep /srv/ontoportal/data/mgrep\n\
+      mkdir -p config/environments\ncat > config/environments/compose.rb <<RUBY\n\
+      GOO_BACKEND_NAME = ENV.fetch(\"GOO_BACKEND_NAME\", \"virtuoso\")\nGOO_HOST =\
+      \ ENV.fetch(\"GOO_HOST\", \"localhost\")\nGOO_PATH_DATA = ENV.fetch(\"GOO_PATH_DATA\"\
+      , \"/sparql/\")\nGOO_PATH_QUERY = ENV.fetch(\"GOO_PATH_QUERY\", \"/sparql/\"\
+      )\nGOO_PATH_UPDATE = ENV.fetch(\"GOO_PATH_UPDATE\", \"/sparql/\")\nGOO_PORT\
+      \ = ENV.fetch(\"GOO_PORT\", 8890)\nMGREP_HOST = ENV.fetch(\"MGREP_HOST\", \"\
+      localhost\")\nMGREP_PORT = ENV.fetch(\"MGREP_PORT\", 55556)\nMGREP_DICT_PATH\
+      \ = ENV.fetch(\"MGREP_DICT_PATH\", \"/data/mgrep/dictionary.txt\")\nREDIS_GOO_CACHE_HOST\
+      \ = ENV.fetch(\"REDIS_GOO_CACHE_HOST\", \"localhost\")\nREDIS_HTTP_CACHE_HOST\
+      \ = ENV.fetch(\"REDIS_HTTP_CACHE_HOST\", \"localhost\")\nREDIS_PERSISTENT_HOST\
+      \ = ENV.fetch(\"REDIS_PERSISTENT_HOST\", \"localhost\")\nREDIS_PORT = ENV.fetch(\"\
+      REDIS_PORT\", 6379)\nREPORT_PATH = ENV.fetch(\"REPORT_PATH\", \"/data/reports/ontologies_report.json\"\
+      )\nREPOSITORY_FOLDER = ENV.fetch(\"REPOSITORY_FOLDER\", \"/data/repository\"\
+      )\nREST_URL_PREFIX = ENV.fetch(\"REST_URL_PREFIX\", \"http://localhost:9393\"\
+      )\nSOLR_PROP_SEARCH_URL = ENV.fetch(\"SOLR_PROP_SEARCH_URL\", \"http://localhost:8983/solr/prop_search_core1\"\
+      )\nSOLR_TERM_SEARCH_URL = ENV.fetch(\"SOLR_TERM_SEARCH_URL\", \"http://localhost:8983/solr/term_search_core1\"\
+      )\n\nif defined?(LinkedData)\n  LinkedData.config do |config|\n    config.goo_backend_name\
+      \ = GOO_BACKEND_NAME.to_s\n    config.goo_host = GOO_HOST.to_s\n    config.goo_port\
+      \ = GOO_PORT.to_i\n    config.goo_path_query = GOO_PATH_QUERY.to_s\n    config.goo_path_data\
+      \ = GOO_PATH_DATA.to_s\n    config.goo_path_update = GOO_PATH_UPDATE.to_s\n\
+      \    config.goo_redis_host = REDIS_GOO_CACHE_HOST.to_s\n    config.goo_redis_port\
+      \ = REDIS_PORT.to_i\n    config.http_redis_host = REDIS_HTTP_CACHE_HOST.to_s\n\
+      \    config.http_redis_port = REDIS_PORT.to_i\n    config.ontology_analytics_redis_host\
+      \ = REDIS_PERSISTENT_HOST.to_s\n    config.ontology_analytics_redis_port = REDIS_PORT.to_i\n\
+      \    config.repository_folder = REPOSITORY_FOLDER.to_s\n    config.search_server_url\
+      \ = SOLR_TERM_SEARCH_URL.to_s\n    config.property_search_server_url = SOLR_PROP_SEARCH_URL.to_s\n\
+      \    config.replace_url_prefix = true\n    config.rest_url_prefix = REST_URL_PREFIX.to_s\n\
+      \    config.enable_notifications = false\n  end\nend\n\nif defined?(Annotator)\n\
+      \  Annotator.config do |config|\n    config.annotator_redis_host = REDIS_PERSISTENT_HOST.to_s\n\
+      \    config.annotator_redis_port = REDIS_PORT.to_i\n    config.mgrep_host =\
+      \ MGREP_HOST.to_s\n    config.mgrep_port = MGREP_PORT.to_i\n    config.mgrep_dictionary_file\
+      \ = MGREP_DICT_PATH.to_s\n  end\nend\n\nif defined?(NcboCron)\n  NcboCron.config\
+      \ do |config|\n    config.redis_host = REDIS_PERSISTENT_HOST.to_s\n    config.redis_port\
+      \ = REDIS_PORT.to_i\n    config.ontology_report_path = REPORT_PATH\n    config.daemonize\
+      \ = false\n    config.search_index_all_url = ENV.fetch(\"SEARCH_INDEX_ALL_URL\"\
+      , SOLR_TERM_SEARCH_URL)\n    config.property_search_index_all_url = ENV.fetch(\"\
+      PROPERTY_SEARCH_INDEX_ALL_URL\", SOLR_PROP_SEARCH_URL)\n  end\nend\n\nif defined?(LinkedData::OntologiesAPI)\n\
+      \  LinkedData::OntologiesAPI.config do |config|\n    config.http_redis_host\
+      \ = REDIS_HTTP_CACHE_HOST.to_s\n    config.http_redis_port = REDIS_PORT.to_i\n\
+      \    config.ontology_report_path = REPORT_PATH\n    config.enable_req_timeout\
+      \ = false\n    config.enable_throttling = false\n  end\nend\n\nGoo.use_cache\
+      \ = true if defined?(Goo)\nRUBY\ngem install bundler -v 2.3.27 >/dev/null 2>&1\
+      \ || true\nbundle _2.3.27_ check || bundle _2.3.27_ install\nbundle _2.3.27_\
+      \ exec ruby <<'RUBY' || echo \"WARN: could not patch Virtuoso Goo handling\"\
+      \ >&2\ndef patch_gem(gem_name, relative_path, replacements)\n  path = File.join(Gem::Specification.find_by_name(gem_name).full_gem_path,\
+      \ relative_path)\n  source = File.read(path)\n  patched = replacements.reduce(source)\
+      \ { |text, (old, new_text)| text.gsub(old, new_text) }\n  File.write(path, patched)\
+      \ if patched != source\nend\ndef append_gem_patch(gem_name, relative_path, marker,\
+      \ patch)\n  path = File.join(Gem::Specification.find_by_name(gem_name).full_gem_path,\
+      \ relative_path)\n  source = File.read(path)\n  File.write(path, source + \"\
+      \\n\" + patch) unless source.include?(marker)\nend\npatch_gem(\"ontologies_linked_data\"\
+      , \"lib/ontologies_linked_data/services/submission_process/operations/submission_rdf_generator.rb\"\
+      , {\n  \" if e.response&.body\" => \" if e.respond_to?(:response) && e.response&.body\"\
+      \n})\npatch_gem(\"goo\", \"lib/goo/sparql/client.rb\", {\n  \"DROP GRAPH <\"\
+      \ => \"DROP SILENT GRAPH <\",\n  \"chunk_lines = 500_000 # number of line\"\
+      \ => \"chunk_lines = Integer(ENV.fetch(\\\"GOO_APPEND_CHUNK_LINES\\\", \\\"\
+      2000\\\")) # patched for Virtuoso update payload size\"\n})\nappend_gem_patch(\"\
+      goo\", \"lib/goo/sparql/client.rb\", \"GooVirtuosoAppendPatch\", <<'RUBY_PATCH')\n\
+      # ontoportal-deployment: Virtuoso does not accept Goo's Graph Store append POST\
+      \ on /sparql/.\nmodule GooVirtuosoAppendPatch\n  private\n\n  def execute_append_request(graph,\
+      \ data_file, mime_type_in)\n    return super unless Goo.sparql_backend_name.to_s\
+      \ == \"virtuoso\"\n\n    graph_iri = graph.is_a?(Array) ? graph.first.to_s :\
+      \ graph.to_s\n    Goo.sparql_update_client.update(\"INSERT DATA { GRAPH <#{graph_iri}>\
+      \ {\\n#{data_file}\\n} }\")\n  end\nend\nGoo::SPARQL::Client.prepend(GooVirtuosoAppendPatch)\
+      \ unless Goo::SPARQL::Client.ancestors.include?(GooVirtuosoAppendPatch)\nRUBY_PATCH\n\
+      RUBY\nif [ ! -f /data/cron/.admin_seeded ]; then if bundle _2.3.27_ exec rake\
+      \ \"user:create[$${ADMIN_USERNAME},$${ADMIN_EMAIL},$${ADMIN_PASSWORD}]\"; then\
+      \ bundle _2.3.27_ exec rake \"user:adminify[$${ADMIN_USERNAME}]\" || true; touch\
+      \ /data/cron/.admin_seeded; else echo \"WARN: admin user seed failed or already\
+      \ exists\" >&2; fi; fi\nexec bundle _2.3.27_ exec bin/ncbo_cron"
+  ui:
+    image: ghcr.io/matportal/bioportal_web_ui:master
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      memcached:
+        condition: service_started
+    ports:
+    - ${UI_BIND:-0.0.0.0}:${UI_PORT:-3000}:3000
+    environment:
+      RAILS_ENV: production
+      BUNDLE_PATH: /data/bundle/ui
+      SITE_NAME: MatPortal
+      ORG_NAME: MatPortal
+      ORG_URL: https://matportal.org
+      SUPPORT_EMAIL: matolab.mail@gmail.com
+      UI_THEME: matportal
+      UI_URL: http://localhost:3000
+      PUBLIC_API_URL: http://localhost:9393
+      FORCE_SSL: 'false'
+      MEMCACHE_SERVERS: memcached:11211
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: bioportal_ui_production
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      OP_API_KEY: ${ONTOPORTAL_API_KEY:-change-me}
+      SESSION_COOKIE_KEY: _session_id
+      RAILS_FORCE_SSL: 'false'
+      DB_HOST: mysql
+      BIOPORTAL_WEB_UI_DATABASE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      CACHE_HOST: memcached
+      API_KEY: ${ONTOPORTAL_API_KEY:-change-me}
+      OP_APIKEY: ${ONTOPORTAL_API_KEY:-change-me}
+      API_URL: http://api:9393
+      ANNOTATOR_URL: http://api:9393/annotator
+      SITE: MatPortal
+      ORG: MatPortal
+      RELEASE_VERSION: OntoPortal deployment
+      FAIRNESS_DISABLED: 'false'
+      NCBO_ANNOTATORPLUS_ENABLED: 'false'
+      BIOMIXER_URL: ''
+      BIOMIXER_PUBLIC_APIKEY: ''
+      USE_LEGACY_BIOMIXER: 'false'
+      SPARQL_URL: http://virtuoso:8890/sparql/
+      PUBLIC_SPARQL_URL: https://matportal.org/sparql_proxy
+      PUBLIC_FAIRNESS_URL: https://matportal.org/fairness-assessment/
+      SESSION_COOKIE_DOMAIN: ''
+      SESSION_COOKIE_SAME_SITE: ''
+      SESSION_COOKIE_SECURE: ''
+      FAIRNESS_URL: https://matportal.org/fairness-assessment/
+      MATPORTAL_LIVE_SUMMARY_METRICS_ENABLED: 'false'
+    volumes:
+    - ${DATA_DIR:-./data}:/data
+    working_dir: /app
+    command:
+    - bash
+    - -lc
+    - 'mkdir -p /data/ui/log /data/ui/tmp/pids /data/bundle/ui
+
+      rm -rf log tmp || true
+
+      ln -snf /data/ui/log log
+
+      ln -snf /data/ui/tmp tmp
+
+      gem install bundler -v 2.3.27 >/dev/null 2>&1 || true
+
+      bundle _2.3.27_ check || bundle _2.3.27_ install
+
+      for i in $$(seq 1 30); do if bundle _2.3.27_ exec rails db:prepare; then break;
+      fi; if [ "$$i" = "30" ]; then echo "ERROR: rails db:prepare failed after $${i}
+      attempts" >&2; exit 1; fi; echo "Waiting for UI database to become ready ($${i}/30)"
+      >&2; sleep 5; done
+
+      rm -f tmp/pids/*.pid || true
+
+      exec bundle _2.3.27_ exec puma -C /dev/null -b tcp://0.0.0.0:3000 -e production'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:3000/ >/dev/null || exit 1
+      interval: 20s
+      timeout: 5s
+      retries: 60
+  fairness:
+    image: matportal/fairness:matportal
+    restart: unless-stopped
+    ports:
+    - 127.0.0.1:${FAIRNESS_PORT:-8080}:8080
+    environment:
+      ONTOPORTAL_API_URL: http://localhost:9393
+      ONTOPORTAL_API_KEY: ${ONTOPORTAL_API_KEY:-change-me}
