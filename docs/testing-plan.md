@@ -8,7 +8,7 @@ See `docs/validation-evidence.md` for commands already run and explicit gaps. Cu
 
 ## Done-until-done guardrail
 
-`plans/gates.tsv` is the hard gate ledger. Before anyone says the whole pass is done, run:
+`docs/deployment-gates.tsv` is the deployment gate checklist. Before anyone says the whole pass is done, run:
 
 ```bash
 make check-gates
@@ -20,7 +20,7 @@ It must fail while any required gate is pending. To run a watcher that monitors 
 make watch-gates
 ```
 
-The watcher writes `/home/ranma/tmp/ontoportal-validation-status.md` and exits only when all required gates are complete.
+The watcher writes `/tmp/ontoportal-validation-status.md` by default and exits only when all required gates are complete.
 
 ## Test matrix
 

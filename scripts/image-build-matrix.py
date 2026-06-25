@@ -213,6 +213,13 @@ def get_image_builds(values: Mapping[str, Any], *, include_disabled: bool = Fals
         build_args = item.get("buildArgs") or {}
         if build_args and not isinstance(build_args, Mapping):
             raise SystemExit(f"imageBuilds.components.{name}.buildArgs must be a mapping")
+        sonar = item.get("sonar") or {}
+        if sonar and not isinstance(sonar, Mapping):
+            raise SystemExit(f"imageBuilds.components.{name}.sonar must be a mapping")
+        sonar_enabled = bool_value(sonar.get("enabled") if isinstance(sonar, Mapping) else False, False)
+        sonar_project_key = str(sonar.get("projectKey") or "").strip() if isinstance(sonar, Mapping) else ""
+        if sonar_enabled and not sonar_project_key:
+            raise SystemExit(f"imageBuilds.components.{name}.sonar.projectKey is required when sonar.enabled=true")
 
         entry: dict[str, Any] = {
             "name": str(name),
@@ -227,6 +234,10 @@ def get_image_builds(values: Mapping[str, Any], *, include_disabled: bool = Fals
             "push": push,
             "source_type": source_type,
             "build_args": {str(k): str(v) for k, v in dict(build_args).items()},
+            "sonar_enabled": sonar_enabled,
+            "sonar_project_key": sonar_project_key,
+            "sonar_sources": str(sonar.get("sources") or ".") if isinstance(sonar, Mapping) else ".",
+            "sonar_extra_args": str(sonar.get("extraArgs") or "") if isinstance(sonar, Mapping) else "",
         }
 
         if source_type == "local":

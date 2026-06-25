@@ -87,8 +87,9 @@ published by their source repositories.
 Use source builds when a deployment needs to rebuild from public or private Git
 repositories. Public source-build overlays are included for OntoPortal,
 BioPortal, and AgroPortal. MatPortal needs a site-specific source-build overlay
-when private or unreleased MatPortal repositories/images are involved. Add a
-source-build values file such as:
+when private or unreleased MatPortal repositories/images are involved. Components
+can also opt into SonarQube source scans before Docker build. Add a source-build
+values file such as:
 
 ```yaml
 imageBuilds:

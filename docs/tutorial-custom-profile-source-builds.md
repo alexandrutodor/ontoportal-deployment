@@ -98,6 +98,10 @@ imageBuilds:
       publishImages:
         - docker.io/example/ontologies-api
       helmImage: api
+      sonar:
+        enabled: true
+        projectKey: example-ontologies-api
+        sources: .
       source:
         type: git
         url: https://github.com/ontoportal/ontologies_api.git
@@ -108,7 +112,7 @@ imageBuilds:
 
 `image` is the primary image repository used when rendering Helm values. `publishImages` is optional and mirrors the same build to extra repositories, for example Docker Hub. Add more enabled components for `cron`, `ui`, `mgrep`, `fairness`, `assistant`, or `ontopanel` only when you have accessible source repositories and Dockerfiles for them; set `helmImage` to the matching chart image key.
 
-For private GitHub repositories, add a repository secret named `SOURCE_GIT_TOKEN` with read access. For Docker Hub publishing, add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. GHCR publishing uses the workflow `GITHUB_TOKEN`.
+For private GitHub repositories, add a repository secret named `SOURCE_GIT_TOKEN` with read access. For Docker Hub publishing, add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. GHCR publishing uses the workflow `GITHUB_TOKEN`. For components with `sonar.enabled=true`, add `SONAR_TOKEN` and `SONAR_HOST_URL` as repository configuration; the workflow runs SonarQube before Docker build/push.
 
 ## 5. Build and publish
 

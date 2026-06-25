@@ -79,7 +79,7 @@ def render(gates: list[dict[str, str]], repo: Path) -> tuple[bool, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check or watch the OntoPortal validation gate ledger.")
-    parser.add_argument("--gate-file", default="plans/gates.tsv")
+    parser.add_argument("--gate-file", default="docs/deployment-gates.tsv")
     parser.add_argument("--status-file", default="")
     parser.add_argument("--watch", action="store_true", help="Keep checking until all required gates pass/waive.")
     parser.add_argument("--interval", type=int, default=300)

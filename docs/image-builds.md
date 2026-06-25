@@ -81,6 +81,31 @@ The render step creates `image-values.yaml`, which maps the built image reposito
 
 Remote Git sources are restricted to allowed hosts declared in `imageBuilds.defaults.allowedGitHosts`, HTTP(S) or SSH Git URLs are supported, and local build contexts must stay inside the repository. The validation scripts do not clone remote repositories; the workflow performs that live check when a build is requested.
 
+### Optional SonarQube source scans
+
+Components can opt into a SonarQube source scan before Docker build:
+
+```yaml
+imageBuilds:
+  components:
+    api:
+      enabled: true
+      image: ghcr.io/example/ontologies-api
+      helmImage: api
+      sonar:
+        enabled: true
+        projectKey: example-ontologies-api
+        sources: .
+      source:
+        type: git
+        url: https://github.com/ontoportal/ontologies_api.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+```
+
+When `sonar.enabled=true`, configure `SONAR_TOKEN` as a repository secret and `SONAR_HOST_URL` as either a repository variable or secret. The scan runs after the source repository is fetched and before any Docker image is built or pushed. Keep the regular Trivy filesystem and image scans enabled as separate gates.
+
 ### Publishing to GHCR and Docker Hub
 
 Each source-build component has a primary `image` and optional `publishImages` mirrors:

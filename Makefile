@@ -36,10 +36,10 @@ validate-environments:
 	python3 scripts/validate-environments.py
 
 check-gates:
-	python3 scripts/gate-check.py --gate-file plans/gates.tsv
+	python3 scripts/gate-check.py --gate-file docs/deployment-gates.tsv
 
 watch-gates:
-	python3 scripts/gate-check.py --gate-file plans/gates.tsv --watch --interval $${VALIDATION_INTERVAL:-300} --status-file $${VALIDATION_STATUS_FILE:-/home/ranma/tmp/ontoportal-validation-status.md}
+	python3 scripts/gate-check.py --gate-file docs/deployment-gates.tsv --watch --interval $${VALIDATION_INTERVAL:-300} --status-file $${VALIDATION_STATUS_FILE:-/tmp/ontoportal-validation-status.md}
 
 compose-config: compose-all
 	command -v docker >/dev/null

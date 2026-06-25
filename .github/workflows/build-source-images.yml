@@ -104,6 +104,26 @@ jobs:
             --url "${{ matrix.git_url }}" \
             --ref "${{ matrix.git_ref }}" \
             --dest ".image-build-src/${{ matrix.name }}"
+      - name: Verify SonarQube credentials
+        if: matrix.sonar_enabled
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || secrets.SONAR_HOST_URL }}
+        run: |
+          test -n "${SONAR_TOKEN}" || { echo "SONAR_TOKEN secret is required when sonar.enabled=true" >&2; exit 1; }
+          test -n "${SONAR_HOST_URL}" || { echo "SONAR_HOST_URL variable or secret is required when sonar.enabled=true" >&2; exit 1; }
+      - name: SonarQube source scan
+        if: matrix.sonar_enabled
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: ${{ matrix.context }}
+          args: >-
+            -Dsonar.projectKey=${{ matrix.sonar_project_key }}
+            -Dsonar.sources=${{ matrix.sonar_sources }}
+            ${{ matrix.sonar_extra_args }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx

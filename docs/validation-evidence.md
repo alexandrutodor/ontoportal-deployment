@@ -4,7 +4,7 @@ This file records what has actually been tested for this repository and what sti
 
 ## Integration and validation evidence (2026-06-21)
 
-- ZIP integrated from `/home/ranma/ontoportal/ontoportal-deployment/ontoportal-deployment-main-pass4.zip` into this repository.
+- Integrated from a local development archive into this repository.
 - Repository validation run on host cluster-capable machine with Docker/Helm available.
 
 ### Static validation
@@ -345,7 +345,7 @@ Result: the check failed as intended with `verticalPodAutoscaling.api.updateMode
 
 Run `k3s-20260624211100` passed on a disposable GCP Compute VM using `scripts/gcp-vm-k3s-runner.sh` with the MatPortal k3s CI public-runtime overlay and external-IP mode.
 
-Evidence retained at `/home/ranma/tmp/ontoportal-gcp-vm-k3s-k3s-20260624211100`:
+Evidence was retained outside the repository in the operator's local artifact directory:
 
 - `runner_rc=0`, `cleanup_rc=0` in `final-status.txt`.
 - Phase sentinels present: `phase-smoke-done`, `phase-import-smoke-done`, `phase-app-smoke-done`, `phase-ui-e2e-done`.
@@ -358,9 +358,9 @@ Local preflight before the passing run also passed: shell syntax for runner/smok
 
 ### AWS EKS Live Cluster Validation (2026-06-25)
 
-An EKS deployment validation run was successfully completed using the script `/home/ranma/tmp/aws-eks-validation.sh` with a 2-node cluster of `m7i-flex.large` instances in `eu-north-1` (staying under the AWS standard vCPU quota limit of 5.0).
+An EKS deployment validation run was successfully completed using a local validation script with a 2-node cluster of `m7i-flex.large` instances in `eu-north-1` (staying under the AWS standard vCPU quota limit of 5.0).
 
-Evidence retained at `/home/ranma/tmp/aws-eks-results.tar.gz`:
+Evidence was retained outside the repository as a local results archive:
 
 - Provisioned ephemeral EKS cluster `op-eks-val` via `eksctl` with Amazon Linux 2023 nodes.
 - Resolved UI startup probe issue by adding a `startupProbe` in `chart/ontoportal/templates/ui.yaml`.
