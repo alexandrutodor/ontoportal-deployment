@@ -43,7 +43,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "ontoportal.image" -}}
+{{- if .digest -}}
+{{- printf "%s@%s" .repository .digest -}}
+{{- else -}}
 {{- printf "%s:%s" .repository .tag -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "ontoportal.componentNodeSelector" -}}

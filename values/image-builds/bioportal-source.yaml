@@ -1,6 +1,6 @@
-# Build NCBO/BioPortal-flavoured images from NCBO public repositories.
+# Build BioPortal application images from public source repositories.
+# Primary images publish to GHCR; publishImages mirrors the same tags to Docker Hub when push=true.
 deploymentTarget:
-  distribution: bioportal
   imageMode: build
 
 imageBuilds:
@@ -19,6 +19,8 @@ imageBuilds:
     api:
       enabled: true
       image: ghcr.io/ncbo/ontologies-api
+      publishImages:
+        - docker.io/ncbo/ontologies-api
       helmImage: api
       source:
         type: git
@@ -29,6 +31,8 @@ imageBuilds:
     cron:
       enabled: true
       image: ghcr.io/ncbo/ncbo-cron
+      publishImages:
+        - docker.io/ncbo/ncbo-cron
       helmImage: cron
       source:
         type: git
@@ -39,6 +43,8 @@ imageBuilds:
     ui:
       enabled: true
       image: ghcr.io/ncbo/bioportal-web-ui
+      publishImages:
+        - docker.io/ncbo/bioportal-web-ui
       helmImage: ui
       source:
         type: git

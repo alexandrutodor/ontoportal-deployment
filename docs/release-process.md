@@ -77,7 +77,7 @@ images:
     digest: sha256:...
 ```
 
-If the chart does not yet support a digest field for a component, pin the tag to an immutable release tag and record the digest in the release notes.
+When `digest` is set, the chart deploys `repository@sha256:...`; keep `tag` only as human-readable release context.
 
 ## Tagging
 

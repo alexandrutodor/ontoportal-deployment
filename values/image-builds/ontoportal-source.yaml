@@ -1,6 +1,5 @@
 # Build OntoPortal application images from public source repositories.
-# Use with scripts/image-build-matrix.py or environments/* recipes. The resulting
-# image tags should be rendered into Helm values before deployment.
+# Primary images publish to GHCR; publishImages mirrors the same tags to Docker Hub when push=true.
 deploymentTarget:
   imageMode: build
 
@@ -20,6 +19,8 @@ imageBuilds:
     api:
       enabled: true
       image: ghcr.io/ontoportal/ontologies-api
+      publishImages:
+        - docker.io/ontoportal/ontologies-api
       helmImage: api
       source:
         type: git
@@ -30,6 +31,8 @@ imageBuilds:
     cron:
       enabled: true
       image: ghcr.io/ontoportal/ncbo-cron
+      publishImages:
+        - docker.io/ontoportal/ncbo-cron
       helmImage: cron
       source:
         type: git
@@ -40,6 +43,8 @@ imageBuilds:
     ui:
       enabled: true
       image: ghcr.io/ontoportal/ontoportal-web-ui
+      publishImages:
+        - docker.io/ontoportal/ontoportal-web-ui
       helmImage: ui
       source:
         type: git
@@ -50,6 +55,8 @@ imageBuilds:
     mgrep:
       enabled: true
       image: ghcr.io/ontoportal/mgrep
+      publishImages:
+        - docker.io/ontoportal/mgrep
       helmImage: mgrep
       source:
         type: git

@@ -1,0 +1,58 @@
+# Example only. Enable after the matching MatPortal source repositories and
+# target registries are available to the workflow.
+#
+# MatPortal is not a fully public, reproducible distribution today: some source
+# repositories or runtime images may be private, unreleased, or site-specific.
+# Keep this file disabled until each component points at a real repository and
+# Dockerfile that the workflow can access.
+deploymentTarget:
+  imageMode: build
+
+imageBuilds:
+  enabled: false
+  defaults:
+    platforms: linux/amd64,linux/arm64
+    push: true
+    allowedImagePrefixes: ["ghcr.io/matportal/", "docker.io/matportal/"]
+    allowedGitHosts: ["github.com"]
+    tags: |-
+      type=ref,event=branch
+      type=ref,event=tag
+      type=sha,prefix=sha-
+  components:
+    api:
+      enabled: false
+      image: ghcr.io/matportal/ontologies-api
+      publishImages:
+        - docker.io/matportal/ontologies-api
+      helmImage: api
+      source:
+        type: git
+        url: https://github.com/matportal/ontologies_api.git
+        ref: main
+        context: .
+        dockerfile: Dockerfile
+    cron:
+      enabled: false
+      image: ghcr.io/matportal/ncbo-cron
+      publishImages:
+        - docker.io/matportal/ncbo-cron
+      helmImage: cron
+      source:
+        type: git
+        url: https://github.com/matportal/ncbo_cron.git
+        ref: main
+        context: .
+        dockerfile: Dockerfile
+    ui:
+      enabled: false
+      image: ghcr.io/matportal/bioportal-web-ui
+      publishImages:
+        - docker.io/matportal/bioportal-web-ui
+      helmImage: ui
+      source:
+        type: git
+        url: https://github.com/matportal/bioportal_web_ui.git
+        ref: main
+        context: .
+        dockerfile: Dockerfile

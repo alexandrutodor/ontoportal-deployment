@@ -52,7 +52,7 @@ For disposable dev clusters, leaving values empty lets the chart generate or pre
 - `autoscaling.<component>.mode=keda` requires KEDA CRDs/operator before installing this chart; `values/addons/keda-autoscaling.yaml` is an API/UI example overlay.
 - `verticalPodAutoscaling.<component>.enabled=true` requires the `autoscaling.k8s.io/v1` VPA CRD/controller before installing this chart; `values/addons/vpa-recommendations.yaml` is a recommendation-only overlay.
 - Mutating VPA modes (`Initial`, `Recreate`, `InPlace`, `InPlaceOrRecreate`, `Auto`) must not be combined with CPU/memory-utilization HPA/KEDA for the same workload. Use VPA `Off` to gather recommendations while HPA/KEDA owns replica count.
-- Pin image tags or digests in site values before production; profile defaults intentionally keep upstream/dev tags visible.
+- Pin image tags or digests in site values before production; profile defaults intentionally keep upstream/dev tags visible. Set `images.<component>.digest` to deploy `repository@sha256:...` instead of `repository:tag`.
 
 ## Clean baseline rule
 

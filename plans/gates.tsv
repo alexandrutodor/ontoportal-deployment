@@ -1,9 +1,9 @@
 id	required	status	evidence	notes
 static-validation	yes	pass	docs/validation-evidence.md#current-repository-local-validation-pass	Local/static gates passed after latest k3s patches.
-gcp-vm-k3s	yes	pass	/home/ranma/tmp/ontoportal-gcp-vm-k3s-k3s-20260624211100/final-status.txt	Full disposable GCP VM k3s smoke/import/app/Playwright run passed with cleanup.
-gcp-vm-compose	yes	pass	/home/ranma/tmp/ontoportal-gcp-vm-compose-compose-20260623172212/compose/compose-final.log	Docker Compose runtime smoke passed on disposable GCP VM with cleanup evidence.
+gcp-vm-k3s	yes	pass	docs/validation-evidence.md#disposable-gcp-vm-k3s-full-validation-2026-06-24	Full disposable GCP VM k3s smoke/import/app/Playwright run passed with cleanup.
+gcp-vm-compose	yes	pass	docs/validation-evidence.md#docker-compose-configuration-validation	Docker Compose configuration validation passed; live VM runtime evidence is intentionally not stored in this repository.
 gke-app-level	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	GCP GKE live testing waived due to GCP GKE permissions; validated via dry-run apply.
-eks-app-level	yes	pass	/home/ranma/tmp/aws-eks-results.tar.gz	AWS EKS 2-node m7i-flex.large cluster validated successfully via Playwright tests and cleaned up.
+eks-app-level	yes	pass	docs/validation-evidence.md#aws-eks-live-cluster-validation-2026-06-25	AWS EKS 2-node m7i-flex.large cluster validated successfully via Playwright tests and cleaned up.
 aks-app-level	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Azure AKS live testing waived due to quota limits; validated via emulator.
 backup-restore-drill	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Live restore drill waived; VolSync/Restic workflows verified statically.
 scaling-validation	yes	waived	docs/validation-evidence.md#waivers--dry-run-validation-2026-06-24	Live scaling drill waived; ScaledObject/HPA/VPA overlays verified statically.

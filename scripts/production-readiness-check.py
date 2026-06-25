@@ -157,7 +157,10 @@ def main() -> int:
     errors: list[str] = []
 
     for name, cfg in sorted((values.get("images") or {}).items()):
-        tag = str((cfg or {}).get("tag", ""))
+        cfg = cfg or {}
+        if cfg.get("digest"):
+            continue
+        tag = str(cfg.get("tag", ""))
         if tag in {"latest", "development", "main", "master", "edge", "nightly", "replace-with-built-tag"}:
             warnings.append(f"image {name!r} uses floating or placeholder tag {tag!r}; pin an immutable version or digest before production")
 

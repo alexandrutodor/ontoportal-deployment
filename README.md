@@ -157,7 +157,7 @@ python3 scripts/image-build-matrix.py -f values/image-builds/ontoportal-source.y
 python3 scripts/render-environment.py environments/bioportal-compose-source.yaml --image-tag sha-validated
 ```
 
-This supports the public OntoPortal/BioPortal/AgroPortal pattern where some teams run published images while others mount or build from application repositories during development. See `docs/image-builds.md` and `docs/modular-environments.md`.
+This supports the public OntoPortal/BioPortal/AgroPortal pattern where some teams run published images while others mount or build from application repositories during development. Source-build components can publish to GHCR and mirror to Docker Hub in the same workflow run via `publishImages`. MatPortal deployments may require private or unreleased source repositories/images; the public CI profile validates wiring with substitute images, not the complete private MatPortal stack. See `docs/image-builds.md`, `docs/modular-environments.md`, and `docs/tutorial-custom-profile-source-builds.md`.
 
 ## Cloud provider overlays
 
@@ -271,6 +271,7 @@ kubectl api-resources | grep -i '^servicemonitors' || echo 'install Prometheus O
 - `docs/high-availability.md`: HA architecture and validation checklist.
 - `docs/backup-restic.md`: Restic backup and restore strategy.
 - `docs/modular-environments.md`: integrated recipes for Compose, k3s, AWS EKS, Azure AKS, GKE, and source-image build flows.
+- `docs/tutorial-custom-profile-source-builds.md`: create a custom profile, build from source, publish to GHCR/Docker Hub, and pin accepted images.
 - `docs/upstream-environment-map.md`: how published OntoPortal/BioPortal/AgroPortal deployment patterns map to reusable layers in this repository.
 - `docs/cloud-deployments.md`: cloud provider overlays, storage/ingress assumptions, and RWX guidance.
 - `docs/image-builds.md`: optional amd64/arm64 image builds to GHCR or Docker Hub.

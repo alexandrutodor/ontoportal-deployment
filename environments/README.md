@@ -29,6 +29,10 @@ or a private repository.
 
 Recipes with `imageBuildValuesFiles` do not clone or build repositories during rendering. They generate `build-matrix.json` and, when an image tag is provided, `image-values.yaml`. Run the manual `build-source-images` workflow or an equivalent local Buildx process first, then render with the accepted immutable tag. For private GitHub sources, configure `SOURCE_GIT_TOKEN` or runner SSH credentials.
 
+A source-build component can publish the same build to both GHCR and Docker Hub by setting a primary `image` plus `publishImages` mirrors. Docker Hub publishing requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets; GHCR uses `GITHUB_TOKEN`.
+
+MatPortal recipes may require private or unreleased images/source repositories. The public MatPortal CI profile validates the deployment wiring with substitute images, not the complete private MatPortal application stack.
+
 ## Cloud recipes
 
 AWS, Azure, and GCP recipes target existing Kubernetes clusters. They do not provision EKS, AKS, GKE, node pools, cloud databases, DNS, or certificate resources. Use provider IaC outside this repository for platform resources, then combine the rendered values with a private site overlay for hosts, TLS, external secret names, identity annotations, image pins, and final resource sizing.

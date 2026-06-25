@@ -1,6 +1,6 @@
-# Build AgroPortal-flavoured images from AgroPortal public repositories.
+# Build AgroPortal application images from public source repositories.
+# Primary images publish to GHCR; publishImages mirrors the same tags to Docker Hub when push=true.
 deploymentTarget:
-  distribution: agroportal
   imageMode: build
 
 imageBuilds:
@@ -19,6 +19,8 @@ imageBuilds:
     api:
       enabled: true
       image: ghcr.io/agroportal/ontologies-api
+      publishImages:
+        - docker.io/agroportal/ontologies-api
       helmImage: api
       source:
         type: git
@@ -29,6 +31,8 @@ imageBuilds:
     cron:
       enabled: true
       image: ghcr.io/agroportal/ncbo-cron
+      publishImages:
+        - docker.io/agroportal/ncbo-cron
       helmImage: cron
       source:
         type: git
@@ -39,6 +43,8 @@ imageBuilds:
     ui:
       enabled: true
       image: ghcr.io/agroportal/ontoportal-web-ui
+      publishImages:
+        - docker.io/agroportal/ontoportal-web-ui
       helmImage: ui
       source:
         type: git

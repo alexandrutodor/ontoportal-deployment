@@ -68,6 +68,8 @@ The root `.dockerignore` excludes Git metadata, local env files, Terraform state
 
 In addition to `images/*/image.json` helper images, deployments can define source builds under `values/image-builds/*.yaml`. These files describe which application component should be built, the target registry repository, and either a local or Git source. The manual `build-source-images` workflow reads those values through `scripts/image-build-matrix.py`, fetches Git sources when needed, runs Trivy scans, and builds/pushes with Docker Buildx when `push=true` is requested.
 
+The repository includes public source-build plans for OntoPortal, BioPortal, and AgroPortal. Their primary image targets are GHCR, and `publishImages` mirrors the same tags to Docker Hub when `push=true`. Remove or override `publishImages` if you only want GHCR. MatPortal is different: not every MatPortal source repository or runtime image is public/released from this deployment repository, so `values/image-builds/matportal-source.example.yaml` is disabled until the site operator fills in accessible repositories and registry targets.
+
 Example:
 
 ```bash
@@ -79,15 +81,40 @@ The render step creates `image-values.yaml`, which maps the built image reposito
 
 Remote Git sources are restricted to allowed hosts declared in `imageBuilds.defaults.allowedGitHosts`, HTTP(S) or SSH Git URLs are supported, and local build contexts must stay inside the repository. The validation scripts do not clone remote repositories; the workflow performs that live check when a build is requested.
 
+### Publishing to GHCR and Docker Hub
+
+Each source-build component has a primary `image` and optional `publishImages` mirrors:
+
+```yaml
+imageBuilds:
+  defaults:
+    allowedImagePrefixes: ["ghcr.io/example/", "docker.io/example/"]
+  components:
+    api:
+      enabled: true
+      image: ghcr.io/example/ontologies-api
+      publishImages:
+        - docker.io/example/ontologies-api
+      helmImage: api
+      source:
+        type: git
+        url: https://github.com/ontoportal/ontologies_api.git
+        ref: master
+        context: .
+        dockerfile: Dockerfile
+```
+
+The primary `image` is what `render-environment.py --image-tag ...` writes into Helm values. `publishImages` receives the same tags in the same workflow run, which is useful for mirroring to Docker Hub. GHCR uses the workflow `GITHUB_TOKEN`; Docker Hub requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets. Custom registries are intentionally not wired into the stock workflow; use GHCR or Docker Hub unless you maintain a local workflow extension.
+
 ## Production tagging policy
 
-For production, prefer immutable tags in Helm values. A typical promotion flow is:
+For production, prefer immutable tags or digests in Helm values. A typical promotion flow is:
 
 1. Open a pull request and let the workflow build with `push=false` plus Trivy scans.
 2. Build on `main` and publish `main`/`sha-*` tags.
 3. Test the `sha-*` image in a disposable namespace.
 4. Create a release tag such as `v2026.06.13` if the image is accepted.
-5. Update site Helm values to the release tag.
+5. Update site Helm values to the release tag, or set `images.<component>.digest` to the accepted digest.
 6. Record the validation evidence in the deployment issue or runbook.
 
 

@@ -85,7 +85,10 @@ site values. This is the simplest and safest production path when images are
 published by their source repositories.
 
 Use source builds when a deployment needs to rebuild from public or private Git
-repositories. Add a source-build values file such as:
+repositories. Public source-build overlays are included for OntoPortal,
+BioPortal, and AgroPortal. MatPortal needs a site-specific source-build overlay
+when private or unreleased MatPortal repositories/images are involved. Add a
+source-build values file such as:
 
 ```yaml
 imageBuilds:
@@ -94,6 +97,8 @@ imageBuilds:
     api:
       enabled: true
       image: ghcr.io/example/ontologies-api
+      publishImages:
+        - docker.io/example/ontologies-api
       helmImage: api
       source:
         type: git
@@ -117,7 +122,9 @@ python3 scripts/render-environment.py environments/bioportal-compose-source.yaml
 ```
 
 Commit or store the resulting `image-values.yaml` only if it does not contain
-site secrets and it uses an immutable, accepted tag.
+site secrets and it uses an immutable, accepted tag. For production digest pins,
+copy the accepted digest into a private site values file as
+`images.<component>.digest`.
 
 ## Provider targets
 

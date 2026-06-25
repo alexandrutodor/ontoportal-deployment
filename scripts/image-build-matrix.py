@@ -150,6 +150,28 @@ def image_prefix_allowed(image: str, prefixes: list[str], source: str) -> None:
         raise SystemExit(f"{source}: image {image!r} must start with one of: {allowed}")
 
 
+def image_list(value: Any) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        parts = value.replace(",", "\n").splitlines()
+    elif isinstance(value, list):
+        parts = value
+    else:
+        raise SystemExit("publishImages must be a list or newline/comma-separated string")
+    return [str(part).strip() for part in parts if str(part).strip()]
+
+
+def unique(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
 def get_image_builds(values: Mapping[str, Any], *, include_disabled: bool = False, force_push: bool | None = None, platform_override: str = "") -> list[dict[str, Any]]:
     cfg = values.get("imageBuilds") or {}
     if not isinstance(cfg, Mapping) or not cfg.get("enabled"):
@@ -175,6 +197,9 @@ def get_image_builds(values: Mapping[str, Any], *, include_disabled: bool = Fals
         if not image:
             raise SystemExit(f"imageBuilds.components.{name}.image is required when enabled")
         image_prefix_allowed(image, allowed_prefixes, f"imageBuilds.components.{name}")
+        publish_images = unique([image] + image_list(item.get("publishImages")))
+        for publish_image in publish_images:
+            image_prefix_allowed(publish_image, allowed_prefixes, f"imageBuilds.components.{name}.publishImages")
         source = item.get("source") or {}
         if not isinstance(source, Mapping):
             raise SystemExit(f"imageBuilds.components.{name}.source must be a mapping")
@@ -192,6 +217,10 @@ def get_image_builds(values: Mapping[str, Any], *, include_disabled: bool = Fals
         entry: dict[str, Any] = {
             "name": str(name),
             "image": image,
+            "images": "\n".join(publish_images),
+            "publish_images": publish_images,
+            "uses_ghcr": any(img.startswith("ghcr.io/") for img in publish_images),
+            "uses_dockerhub": any(img.startswith("docker.io/") for img in publish_images),
             "helm_image": helm_image,
             "platforms": platforms,
             "tags": tags,

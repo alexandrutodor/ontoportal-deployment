@@ -14,6 +14,8 @@ Use this when validating against AgroPortal-style Docker or image conventions. I
 
 Use this for MatPortal. It enables MatPortal branding and MatPortal-only environment variables. Runtime patches are explicit under `patches.*` so reviewers can see exactly where the deployment diverges from upstream-compatible OntoPortal.
 
+MatPortal is not currently a fully public, reproducible distribution from this repository alone. Some MatPortal runtime images or source repositories may be private, unreleased, or site-specific. A fresh checkout can validate the public chart/profile wiring, but a complete MatPortal deployment needs access to the private images or source repositories, or a site overlay that replaces/disables those components.
+
 ### `values/profiles/k3s-local.yaml`
 
 Use this with any main profile on k3s. It assumes the default `local-path` storage class and Traefik ingress class.
@@ -84,8 +86,9 @@ Use `values/image-builds/*.yaml` when a deployment wants to build application im
 - `ontoportal-source.yaml`
 - `bioportal-source.yaml`
 - `agroportal-source.yaml`
+- `matportal-source.example.yaml` (disabled placeholder; enable only after the referenced MatPortal repositories are available)
 
-These overlays are normally consumed through `scripts/image-build-matrix.py`, `.github/workflows/build-source-images.yml`, and `scripts/render-environment.py`. Built images should be promoted with immutable tags through rendered `image-values.yaml`; keep any digest-based pins in private site overlays outside the rendered environment flow.
+These overlays are normally consumed through `scripts/image-build-matrix.py`, `.github/workflows/build-source-images.yml`, and `scripts/render-environment.py`. Built images should be promoted with immutable tags through rendered `image-values.yaml`; keep any digest-based pins in private site overlays outside the rendered environment flow. See `docs/tutorial-custom-profile-source-builds.md` for a profile and source-build walkthrough.
 
 ## Environment recipes
 

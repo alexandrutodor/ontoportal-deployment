@@ -198,6 +198,8 @@ def deep_merge(base: Dict[str, Any], overlay: Mapping[str, Any]) -> Dict[str, An
 
 def image(values: Mapping[str, Any], name: str) -> str:
     cfg = values["images"][name]
+    if cfg.get("digest"):
+        return f"{cfg['repository']}@{cfg['digest']}"
     return f"{cfg['repository']}:{cfg['tag']}"
 
 
