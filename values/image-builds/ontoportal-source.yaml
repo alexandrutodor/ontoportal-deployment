@@ -25,7 +25,7 @@ imageBuilds:
       source:
         type: git
         url: https://github.com/ontoportal/ontologies_api.git
-        ref: master
+        ref: agroportal
         context: .
         dockerfile: Dockerfile
     cron:

@@ -34,6 +34,7 @@
 
 ### Fixed
 
+- Switched default API image to `agroportal/ontologies_api:development` and `ontoportal-source` API ref to `agroportal` for `GET /users/:username/ontologies` route compatibility with `ontoportal_web_ui`.
 - Clean k3s startup issues found during k3s testing: namespace ownership, API probe path, UI Puma/Rails database preparation, MySQL database name, cron log directory, and cron image compatibility.
 - Hardened optional image builds with PR push suppression, safer manual dispatch defaults, image allowlist validation, Buildx cache, and Trivy filesystem/image scans.
 - Improved Restic docs to preserve original deployment replica counts during quiesce/restore.

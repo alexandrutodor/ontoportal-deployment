@@ -4,7 +4,7 @@
 
 ### `values/profiles/ontoportal-clean.yaml`
 
-Use this for a baseline OntoPortal deployment. It intentionally disables MatPortal patches, Matomo, assistant, OntoPanel, and FAIRness by default. The profile pins `bioportal/ncbo_cron:v6.7.1`, because `bioportal/ncbo_cron:latest` expected SolrCloud during k3s testing while this baseline uses standalone Solr cores.
+Use this for a baseline OntoPortal deployment. It intentionally disables MatPortal patches, Matomo, assistant, OntoPanel, and FAIRness by default. The profile pins `bioportal/ncbo_cron:v6.7.1` (since `latest` expected SolrCloud) and `agroportal/ontologies_api:development` (upstream `ontoportal_web_ui` requires the `GET /users/:username/ontologies` route present in the selected AgroPortal API but missing from `bioportal/ontologies_api:latest` and `ontoportal/ontologies_api` master).
 
 ### `values/profiles/agroportal-clean.yaml`
 
@@ -83,7 +83,7 @@ Cloud overlays are provider/runtime layers, not standalone profiles:
 
 Use `values/image-builds/*.yaml` when a deployment wants to build application images from Git sources instead of consuming existing registry images:
 
-- `ontoportal-source.yaml`
+- `ontoportal-source.yaml` (uses the `agroportal` API branch for `GET /users/:username/ontologies` compatibility with `ontoportal_web_ui` master)
 - `bioportal-source.yaml`
 - `agroportal-source.yaml`
 - `matportal-source.example.yaml` (disabled placeholder; enable only after the referenced MatPortal repositories are available)

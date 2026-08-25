@@ -54,8 +54,8 @@ secrets:
 
 images:
   api:
-    repository: bioportal/ontologies_api
-    tag: latest
+    repository: agroportal/ontologies_api
+    tag: development
     pullPolicy: IfNotPresent
   cron:
     repository: bioportal/ncbo_cron

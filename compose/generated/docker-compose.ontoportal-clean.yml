@@ -104,7 +104,7 @@ services:
     - -m
     - '1024'
   api:
-    image: bioportal/ontologies_api:latest
+    image: agroportal/ontologies_api:development
     restart: unless-stopped
     depends_on:
       redis-persistent:
