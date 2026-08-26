@@ -120,6 +120,35 @@ REST_URL_PREFIX = ENV.fetch("REST_URL_PREFIX", "http://localhost:9393")
 SOLR_PROP_SEARCH_URL = ENV.fetch("SOLR_PROP_SEARCH_URL", "http://localhost:8983/solr/prop_search_core1")
 SOLR_TERM_SEARCH_URL = ENV.fetch("SOLR_TERM_SEARCH_URL", "http://localhost:8983/solr/term_search_core1")
 
+require "net/http"
+require "json"
+
+module SOLR
+  module Administration
+    def solr_alive?
+      uri = URI.parse("#{@solr_url}/#{@collection_name}/admin/ping")
+      res = Net::HTTP.get_response(uri)
+      return true if res.is_a?(Net::HTTPSuccess) && (JSON.parse(res.body)["status"] == "OK" rescue false)
+
+      uri = URI.parse("#{@solr_url}/admin/info/system")
+      res = Net::HTTP.get_response(uri)
+      res.is_a?(Net::HTTPSuccess)
+    rescue StandardError
+      false
+    end
+
+    def collection_exists?(collection_name = @collection_name)
+      uri = URI.parse("#{@solr_url}/#{collection_name}/admin/ping")
+      res = Net::HTTP.get_response(uri)
+      return true if res.is_a?(Net::HTTPSuccess) && (JSON.parse(res.body)["status"] == "OK" rescue false)
+
+      solr_alive?
+    rescue StandardError
+      false
+    end
+  end
+end
+
 if defined?(LinkedData)
   LinkedData.config do |config|
     config.goo_backend_name = GOO_BACKEND_NAME.to_s
@@ -135,8 +164,8 @@ if defined?(LinkedData)
     config.ontology_analytics_redis_host = REDIS_PERSISTENT_HOST.to_s
     config.ontology_analytics_redis_port = REDIS_PORT.to_i
     config.repository_folder = REPOSITORY_FOLDER.to_s
-    config.search_server_url = SOLR_TERM_SEARCH_URL.to_s
-    config.property_search_server_url = SOLR_PROP_SEARCH_URL.to_s
+    config.search_server_url = SOLR_TERM_SEARCH_URL.to_s.sub(%r{/term_search_core1/?\z}, "")
+    config.property_search_server_url = SOLR_PROP_SEARCH_URL.to_s.sub(%r{/prop_search_core1/?\z}, "")
     config.replace_url_prefix = true
     config.rest_url_prefix = REST_URL_PREFIX.to_s
     config.enable_notifications = false

@@ -145,10 +145,19 @@ def validate_image_build_configs() -> None:
             raise SystemExit(f"{path.relative_to(ROOT)}: publishing from repository root is not allowed; use a narrower image context")
 
 
+def validate_runtime_solr_compatibility() -> None:
+    helpers_text = (ROOT / "chart" / "ontoportal" / "templates" / "_helpers.tpl").read_text(encoding="utf-8")
+    if "SOLR_TERM_SEARCH_URL.to_s.sub(%r{/term_search_core1/?\\z}" not in helpers_text:
+        raise SystemExit("Runtime config must strip /term_search_core1 for Solr base URL compatibility")
+    if "module Administration" not in helpers_text or "solr_alive?" not in helpers_text:
+        raise SystemExit("Runtime config must override SOLR::Administration for standalone core ping compatibility")
+
+
 def main() -> None:
     validate_yaml()
     validate_profiles()
     validate_no_hardcoded_matportal_services()
+    validate_runtime_solr_compatibility()
     validate_image_build_configs()
     render_compose_profiles()
     print("validation passed")

@@ -4,7 +4,7 @@
 
 ### `values/profiles/ontoportal-clean.yaml`
 
-Use this for a baseline OntoPortal deployment. It intentionally disables MatPortal patches, Matomo, assistant, OntoPanel, and FAIRness by default. The profile pins `bioportal/ncbo_cron:v6.7.1` (since `latest` expected SolrCloud) and `agroportal/ontologies_api:master` (upstream `ontoportal_web_ui` requires the `GET /users/:username/ontologies` route present in the selected AgroPortal API but missing from `bioportal/ontologies_api:latest` and `ontoportal/ontologies_api` master).
+Use this for a baseline OntoPortal deployment. It intentionally disables MatPortal patches, Matomo, assistant, OntoPanel, and FAIRness by default. The profile pins `bioportal/ncbo_cron:v6.7.1` (since `latest` expected SolrCloud) and `agroportal/ontologies_api:master` (upstream `ontoportal_web_ui` requires the `GET /users/:username/ontologies` route present in the selected AgroPortal API but missing from `bioportal/ontologies_api:latest` and `ontoportal/ontologies_api` master). The deployment also adapts the selected API's SolrCloud-oriented health and collection checks to the chart's standalone split Solr cores.
 
 ### `values/profiles/agroportal-clean.yaml`
 
