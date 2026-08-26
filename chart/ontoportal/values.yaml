@@ -55,7 +55,7 @@ secrets:
 images:
   api:
     repository: agroportal/ontologies_api
-    tag: development
+    tag: master
     pullPolicy: IfNotPresent
   cron:
     repository: bioportal/ncbo_cron

@@ -76,7 +76,7 @@ services:
     - -m
     - '1024'
   api:
-    image: agroportal/ontologies_api:development
+    image: agroportal/ontologies_api:master
     restart: unless-stopped
     depends_on:
       redis:
