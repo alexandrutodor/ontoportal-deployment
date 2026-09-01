@@ -20,6 +20,8 @@ The overlay:
 - exposes it at `/visualizer` on the UI ingress host;
 - sets `ONTOPANEL_VISUALIZER_URL=/visualizer/` in the Web UI container.
 
+Before enabling the replacement, verify that the configured `images.ontopanel` image is pullable from the deployment nodes. For a registry that requires authentication, use the existing `global.imagePullSecrets`. Alternatively, run the source-build plan to an accessible registry and override `images.ontopanel` with the resulting image. Do not invent or repoint to an unverified public image. The current GHCR release is an external gate: an anonymous token request returns HTTP 401, and package visibility requires an OntoPortal organization/package administrator.
+
 Enable the `biomixer_replacement` feature in OntoPortal Web UI after deployment. Until then, Web UI continues to use its existing BioMixer configuration.
 
 For a different public location, override the URL:
@@ -51,4 +53,4 @@ Enable `ontopanel` in a Compose values overlay. The generated visualizer service
 
 ## Legacy compatibility
 
-The existing `BIOMIXER_URL`, `BIOMIXER_PUBLIC_APIKEY`, and `USE_LEGACY_BIOMIXER` settings remain available for installations that have not enabled the replacement. The new repository is a replacement, not a fork or redeployment of the legacy BioMixer source.
+The new repository is a replacement, not a fork or redeployment of the legacy BioMixer source. Disabling the `biomixer_replacement` feature returns Web UI to its pre-replacement path and configuration.
