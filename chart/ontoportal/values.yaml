@@ -106,8 +106,8 @@ images:
     tag: latest
     pullPolicy: IfNotPresent
   ontopanel:
-    repository: ghcr.io/ontoportal/biomixer-visualizer
-    tag: main
+    repository: ghcr.io/matportal/biomixer-visualizer
+    digest: sha256:90939ca6b9b7a9a6409c07a38cb60b12f56be6576f6a9bc033fb65df3ffa61df
     pullPolicy: IfNotPresent
 
 # Optional image source-build plan. Helm itself only consumes images.*. The

@@ -16,11 +16,11 @@ helm upgrade --install ontoportal chart/ontoportal \
 
 The overlay:
 
-- deploys `ghcr.io/ontoportal/biomixer-visualizer` on port 8000;
+- deploys the public MatPortal mirror `ghcr.io/matportal/biomixer-visualizer@sha256:90939ca6b9b7a9a6409c07a38cb60b12f56be6576f6a9bc033fb65df3ffa61df` on port 8000;
 - exposes it at `/visualizer` on the UI ingress host;
 - sets `ONTOPANEL_VISUALIZER_URL=/visualizer/` in the Web UI container.
 
-Before enabling the replacement, verify that the configured `images.ontopanel` image is pullable from the deployment nodes. For a registry that requires authentication, use the existing `global.imagePullSecrets`. Alternatively, run the source-build plan to an accessible registry and override `images.ontopanel` with the resulting image.
+By default, the mirror is publicly pullable without authentication and is pinned to the immutable digest above. If overriding `images.ontopanel`, operators must ensure the replacement image is pullable from the deployment nodes; for a private registry, use the existing `global.imagePullSecrets`. Alternatively, run the source-build plan to an accessible registry and override `images.ontopanel` with the resulting image.
 
 Enable the `biomixer_replacement` feature in OntoPortal Web UI after deployment. Until then, Web UI continues to use its existing BioMixer configuration.
 
@@ -45,7 +45,7 @@ python3 scripts/image-build-matrix.py \
   -f values/image-builds/ontoportal-source.yaml
 ```
 
-Use an immutable image tag or digest in production rather than the default `main` tag.
+The chart default is pinned to the immutable MatPortal mirror digest above. Any `images.ontopanel` override should likewise use an immutable image tag or digest.
 
 ## Docker Compose
 
